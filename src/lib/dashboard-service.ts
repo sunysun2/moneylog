@@ -1,0 +1,179 @@
+import { connectDB } from "@/lib/db";
+import { getMonthlyTrends, getTransactionStats } from "@/lib/transaction-service";
+import { Channel } from "@/models/Channel";
+import { AdsenseAccount } from "@/models/AdsenseAccount";
+import { YoutubeAccount } from "@/models/YoutubeAccount";
+import { PhoneDevice } from "@/models/PhoneDevice";
+import { Transaction } from "@/models/Transaction";
+import type { DashboardChannelRanking, DashboardData } from "@/components/dashboard/types";
+
+type PopulatedAccount = { accountId?: string } | null;
+type IncomeDoc = { description: string; amountKrw: number };
+
+function formatMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split("-");
+  return `${year.slice(-2)}.${month}`;
+}
+
+function getIncomeDateRange(period: "month" | "3m") {
+  const now = new Date();
+
+  if (period === "month") {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+    };
+  }
+
+  return {
+    start: new Date(now.getFullYear(), now.getMonth() - 2, 1),
+    end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+  };
+}
+
+function buildChannelRanking(docs: IncomeDoc[]): DashboardChannelRanking[] {
+  const incomeByChannel = new Map<string, number>();
+
+  for (const doc of docs) {
+    const key = doc.description.trim();
+    if (!key) continue;
+    incomeByChannel.set(key, (incomeByChannel.get(key) ?? 0) + doc.amountKrw);
+  }
+
+  return [...incomeByChannel.entries()]
+    .map(([name, income]) => ({ name, income }))
+    .sort((a, b) => b.income - a.income)
+    .slice(0, 5);
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+  await connectDB();
+
+  const monthRange = getIncomeDateRange("month");
+  const threeMonthRange = getIncomeDateRange("3m");
+
+  const [
+    totalChannels,
+    revenueChannels,
+    activeAdsense,
+    activeYoutube,
+    totalPhones,
+    monthStats,
+    monthlyTrends,
+    recentDocs,
+    monthIncomeDocs,
+    threeMonthIncomeDocs,
+    youtubeWarnings,
+    adsenseWarnings,
+    channelWarnings,
+    channelDocs,
+  ] = await Promise.all([
+    Channel.countDocuments(),
+    Channel.countDocuments({ hasRevenue: true }),
+    AdsenseAccount.countDocuments({ status: "active" }),
+    YoutubeAccount.countDocuments({ status: "active" }),
+    PhoneDevice.countDocuments(),
+    getTransactionStats({ period: "month" }),
+    getMonthlyTrends("1y"),
+    Transaction.find().sort({ date: -1, createdAt: -1 }).limit(8),
+    Transaction.find({
+      type: "income",
+      date: { $gte: monthRange.start, $lt: monthRange.end },
+    }).select("description amountKrw"),
+    Transaction.find({
+      type: "income",
+      date: { $gte: threeMonthRange.start, $lt: threeMonthRange.end },
+    }).select("description amountKrw"),
+    YoutubeAccount.find({ status: { $in: ["warning", "deleted", "inactive"] } })
+      .select("accountId status")
+      .sort({ updatedAt: -1 }),
+    AdsenseAccount.find({ status: { $in: ["warning", "deleted", "inactive"] } })
+      .select("accountId status")
+      .sort({ updatedAt: -1 }),
+    Channel.find({ status: { $in: ["warning", "deleted", "inactive"] } })
+      .select("name handle status")
+      .sort({ updatedAt: -1 }),
+    Channel.find()
+      .sort({ sortOrder: 1, createdAt: 1 })
+      .populate("youtubeAccount", "accountId")
+      .populate("adsenseAccount", "accountId"),
+  ]);
+
+  const channelRanking = {
+    month: buildChannelRanking(monthIncomeDocs),
+    threeMonth: buildChannelRanking(threeMonthIncomeDocs),
+  };
+
+  const warnings: DashboardData["warnings"] = [
+    ...youtubeWarnings.map((doc) => ({
+      id: doc._id.toString(),
+      source: "youtube" as const,
+      sourceLabel: "유튜브",
+      name: doc.accountId,
+      status: doc.status as "warning" | "deleted" | "inactive",
+    })),
+    ...adsenseWarnings.map((doc) => ({
+      id: doc._id.toString(),
+      source: "adsense" as const,
+      sourceLabel: "애드센스",
+      name: doc.accountId,
+      status: doc.status as "warning" | "deleted" | "inactive",
+    })),
+    ...channelWarnings.map((doc) => ({
+      id: doc._id.toString(),
+      source: "channel" as const,
+      sourceLabel: "채널",
+      name: doc.name,
+      status: doc.status as "warning" | "deleted" | "inactive",
+    })),
+  ];
+
+  const channels: DashboardData["channels"] = channelDocs.map((doc) => {
+    const youtube = doc.populated("youtubeAccount") as PopulatedAccount;
+    const adsense = doc.populated("adsenseAccount") as PopulatedAccount;
+
+    return {
+      id: doc._id.toString(),
+      name: doc.name,
+      handle: doc.handle,
+      status: doc.status,
+      contentFormat: doc.contentFormat ?? undefined,
+      hasRevenue: doc.hasRevenue,
+      youtubeAccountLabel: youtube?.accountId,
+      adsenseAccountLabel: adsense?.accountId,
+    };
+  });
+
+  const recentTransactions = recentDocs.map((doc) => ({
+    id: doc._id.toString(),
+    type: doc.type,
+    date: doc.date.toISOString(),
+    description: doc.description,
+    category: doc.category,
+    amountKrw: doc.amountKrw,
+  }));
+
+  const netProfitTrend = monthlyTrends.map((point) => ({
+    month: point.month,
+    label: formatMonthLabel(point.month),
+    netProfit: point.income - point.expense,
+  }));
+
+  return {
+    summary: {
+      totalChannels,
+      revenueChannels,
+      activeAdsense,
+      activeYoutube,
+      totalPhones,
+      monthIncome: monthStats.totalIncome,
+      monthExpense: monthStats.totalExpense,
+      monthNetProfit: monthStats.netProfit,
+    },
+    warnings,
+    channels,
+    channelRanking,
+    recentTransactions,
+    netProfitTrend,
+  };
+}
