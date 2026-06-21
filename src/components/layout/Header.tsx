@@ -1,20 +1,29 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useSearchStore } from "@/stores/searchStore";
 import { SearchBar } from "./SearchBar";
+import { HeaderBackupControls } from "./HeaderBackupControls";
 import { Button } from "@/components/ui/Button";
 
+const HIDE_HEADER_SEARCH_PATHS = ["/finance", "/dashboard"];
+
 export function Header() {
+  const pathname = usePathname();
   const { query, setQuery } = useSearchStore();
+  const showSearch = !HIDE_HEADER_SEARCH_PATHS.includes(pathname);
 
   return (
     <header className="sticky top-0 z-30 flex h-[var(--header-height)] items-center gap-4 bg-bg-base px-4 md:px-6">
-      <div className="hidden flex-1 justify-center md:flex">
-        <SearchBar value={query} onChange={setQuery} />
-      </div>
+      {showSearch && (
+        <div className="hidden flex-1 justify-center md:flex">
+          <SearchBar value={query} onChange={setQuery} />
+        </div>
+      )}
 
       <div className="ml-auto flex w-full items-center justify-end gap-2 md:w-auto">
+        <HeaderBackupControls />
         <Button
           variant="ghost"
           onClick={() => signOut({ callbackUrl: "/login" })}

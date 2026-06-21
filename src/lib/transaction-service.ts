@@ -1,5 +1,10 @@
 import { connectDB } from "@/lib/db";
 import {
+  getCalendarThreeMonthRange,
+  formatMonthKey,
+  parseReferenceDate,
+} from "@/lib/calendar-month";
+import {
   Transaction,
   type ITransaction,
   type TransactionSource,
@@ -34,9 +39,11 @@ export interface TransactionFilters {
   type?: TransactionType;
   month?: string;
   period?: TransactionPeriod;
+  /** YYYY-MM-DD — 접속 시점 기준 날짜 (당월·3개월 등 달력 계산용) */
+  referenceDate?: string;
 }
 
-export type TransactionPeriod = "all" | "month" | "3m" | "1y";
+export type TransactionPeriod = "all" | "1y" | "3m" | "month" | "1w" | "today";
 
 function serializeTransaction(doc: ITransaction): TransactionData {
   return {
@@ -60,25 +67,34 @@ function buildDateRange(month?: string) {
   return { start, end };
 }
 
-function buildDateFilter(period?: TransactionPeriod) {
+function buildDateFilter(period?: TransactionPeriod, referenceDate?: Date) {
   if (!period || period === "all") return null;
 
-  const now = new Date();
+  const now = referenceDate ?? new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+  if (period === "today") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { start, end };
+  }
+
+  if (period === "1w") {
+    const start = new Date(end);
+    start.setDate(start.getDate() - 7);
+    return { start, end };
+  }
 
   if (period === "month") {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const start = new Date(end);
+    start.setMonth(start.getMonth() - 1);
     return { start, end };
   }
 
   if (period === "3m") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return { start, end };
+    return getCalendarThreeMonthRange(now);
   }
 
   const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   return { start, end };
 }
 
@@ -86,7 +102,16 @@ function buildQuery(filters?: TransactionFilters) {
   const query: Record<string, unknown> = {};
   if (filters?.type) query.type = filters.type;
 
-  const range = buildDateFilter(filters?.period) ?? buildDateRange(filters?.month);
+  if (filters?.month) {
+    const range = buildDateRange(filters.month);
+    if (range) {
+      query.date = { $gte: range.start, $lt: range.end };
+    }
+    return query;
+  }
+
+  const referenceDate = parseReferenceDate(filters?.referenceDate) ?? undefined;
+  const range = buildDateFilter(filters?.period, referenceDate);
   if (range) {
     query.date = { $gte: range.start, $lt: range.end };
   }
@@ -124,26 +149,32 @@ export async function getTransactionStats(
   };
 }
 
-function formatMonthKey(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${date.getFullYear()}-${month}`;
-}
-
 function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split("-");
   return `${year.slice(-2)}.${month}`;
 }
 
-function listMonthKeysForPeriod(period: TransactionPeriod): string[] {
-  const now = new Date();
-  const keys: string[] = [];
+function listMonthKeysForPeriod(period: TransactionPeriod, referenceDate?: Date) {
+  const now = referenceDate ?? new Date();
 
-  if (period === "month") {
-    keys.push(formatMonthKey(now));
-    return keys;
+  if (period === "today" || period === "1w" || period === "month") {
+    const range = buildDateFilter(period, referenceDate);
+    if (!range) return [formatMonthKey(now)];
+
+    const keys: string[] = [];
+    const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
+    const endCursor = new Date(range.end.getFullYear(), range.end.getMonth(), 1);
+
+    while (cursor <= endCursor) {
+      keys.push(formatMonthKey(cursor));
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return keys.length > 0 ? keys : [formatMonthKey(now)];
   }
 
   const count = period === "3m" ? 3 : 12;
+  const keys: string[] = [];
   for (let offset = count - 1; offset >= 0; offset -= 1) {
     const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
     keys.push(formatMonthKey(date));
@@ -152,9 +183,12 @@ function listMonthKeysForPeriod(period: TransactionPeriod): string[] {
   return keys;
 }
 
-export async function getMonthlyTrends(period: TransactionPeriod): Promise<MonthlyTrendPoint[]> {
+export async function getMonthlyTrends(
+  period: TransactionPeriod,
+  type?: TransactionFilters["type"]
+): Promise<MonthlyTrendPoint[]> {
   await connectDB();
-  const query = buildQuery({ period });
+  const query = buildQuery({ period, type });
   const docs = await Transaction.find(query);
 
   const totals = new Map<string, { income: number; expense: number }>();

@@ -6,12 +6,22 @@ import { cn } from "@/lib/cn";
 import { notify } from "@/lib/notify";
 import { Button, StatusPill } from "@/components/ui";
 import { ContentFormatBadge } from "@/components/channels/ContentFormatBadge";
-import { formatKrw } from "@/components/finance/types";
+import { formatKrw, formatManwon } from "@/components/finance/types";
 import { statusLabel } from "@/components/channels/types";
 import { DashboardNetProfitChart } from "./DashboardNetProfitChart";
-import type { DashboardData } from "./types";
+import { exportDashboardScreenshot } from "@/lib/export-dashboard-screenshot";
+import { getReferenceDateIso } from "@/lib/calendar-month";
+import type { DashboardChannelRanking, DashboardData, DashboardNetProfitPeriod } from "./types";
+import {
+  DASHBOARD_NET_PROFIT_OPTIONS,
+  dashboardNetProfitLabel,
+  getDashboardNetProfitAmount,
+  getDashboardNetProfitButtonClassName,
+} from "./types";
 
 const EMPTY_DATA: DashboardData = {
+  referenceDate: getReferenceDateIso(),
+  calendarMonthLabel: "",
   summary: {
     totalChannels: 0,
     revenueChannels: 0,
@@ -21,6 +31,8 @@ const EMPTY_DATA: DashboardData = {
     monthIncome: 0,
     monthExpense: 0,
     monthNetProfit: 0,
+    threeMonthNetProfit: 0,
+    allNetProfit: 0,
   },
   warnings: [],
   channels: [],
@@ -57,17 +69,74 @@ function formatShortDate(value: string) {
   return value.slice(0, 10);
 }
 
+function SummaryCardItem({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-border-subtle bg-bg-surface p-5 text-center">
+      <p className="summary-card-label whitespace-nowrap text-on-surface-variant text-[15.6px] leading-[21px] font-semibold uppercase tracking-[0.05em]">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "summary-card-value mt-2 whitespace-nowrap text-[31.2px] leading-[38px] font-bold tabular-nums",
+          tone
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ChannelRankingList({ items }: { items: DashboardChannelRanking[] }) {
+  if (items.length === 0) {
+    return <p className="mt-4 text-body-sm text-on-surface-variant">집계할 수입 데이터가 없습니다.</p>;
+  }
+
+  return (
+    <ol className="mt-4 space-y-3">
+      {items.map((item, index) => (
+        <li
+          key={item.name}
+          className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle px-3 py-2.5"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-container/15 text-body-sm font-bold text-primary-container">
+              {index + 1}
+            </span>
+            <span className="text-body-sm font-medium text-text-primary">{item.name}</span>
+          </div>
+          <span className="text-body-sm font-semibold text-primary-container">
+            {formatManwon(item.income)}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function DashboardView() {
   const reportRef = useRef<HTMLDivElement>(null);
+  const [referenceDate] = useState(() => getReferenceDateIso());
   const [data, setData] = useState<DashboardData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [rankingPeriod, setRankingPeriod] = useState<RankingPeriod>("month");
+  const [netProfitPeriod, setNetProfitPeriod] = useState<DashboardNetProfitPeriod>("month");
+
+  const activeNetProfit = getDashboardNetProfitAmount(data.summary, netProfitPeriod);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch(`/api/dashboard?referenceDate=${referenceDate}`);
       if (!res.ok) throw new Error();
       setData(await res.json());
     } catch {
@@ -75,96 +144,30 @@ export function DashboardView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [referenceDate]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  async function handleExportPdf() {
-    if (!reportRef.current) return;
+  async function handleExportScreenshot() {
+    if (!reportRef.current || loading) return;
 
     setExporting(true);
+
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
-
-      const canvas = await html2canvas(reportRef.current, {
-        backgroundColor: "#000000",
-        scale: 2,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
-      pdf.save(`moneylog-report-${new Date().toISOString().slice(0, 10)}.pdf`);
-      notify.success("PDF 리포트를 저장했습니다.");
-    } catch {
-      notify.error("PDF 내보내기에 실패했습니다.");
+      const dateLabel = new Date().toISOString().slice(0, 10);
+      await exportDashboardScreenshot(
+        reportRef.current,
+        `moneylog-report-${dateLabel}.png`
+      );
+      notify.success("스크린샷을 저장했습니다.");
+    } catch (error) {
+      console.error("Screenshot export failed:", error);
+      notify.error("스크린샷 내보내기에 실패했습니다.");
     } finally {
       setExporting(false);
     }
-  }
-
-  function handleExportMarkdown() {
-    const { summary, warnings, channelRanking, recentTransactions, netProfitTrend } = data;
-    const lines = [
-      "# MoneyLog 통합 리포트",
-      "",
-      `생성일: ${new Date().toISOString().slice(0, 10)}`,
-      "",
-      "## 요약",
-      `- 총 채널: ${summary.totalChannels}`,
-      `- 수창 채널: ${summary.revenueChannels}`,
-      `- 활성 애드센스: ${summary.activeAdsense}`,
-      `- 활성 유튜브: ${summary.activeYoutube}`,
-      `- 휴대폰: ${summary.totalPhones}`,
-      `- 당월 수입: ${formatKrw(summary.monthIncome)}`,
-      `- 당월 지출: ${formatKrw(summary.monthExpense)}`,
-      `- 당월 순이익: ${formatKrw(summary.monthNetProfit)}`,
-      "",
-      "## 경고 항목",
-      ...(warnings.length
-        ? warnings.map((item) => `- [${item.sourceLabel}] ${item.name} (${warningStatusLabel(item.status)})`)
-        : ["- 없음"]),
-      "",
-      "## 수입 상위 채널 (당월)",
-      ...(channelRanking.month.length
-        ? channelRanking.month.map((item, index) => `${index + 1}. ${item.name}: ${formatKrw(item.income)}`)
-        : ["- 없음"]),
-      "",
-      "## 수입 상위 채널 (최근 3개월)",
-      ...(channelRanking.threeMonth.length
-        ? channelRanking.threeMonth.map(
-            (item, index) => `${index + 1}. ${item.name}: ${formatKrw(item.income)}`
-          )
-        : ["- 없음"]),
-      "",
-      "## 월별 순이익",
-      ...netProfitTrend.map((point) => `- ${point.label}: ${formatKrw(point.netProfit)}`),
-      "",
-      "## 최근 거래",
-      ...recentTransactions.map(
-        (item) =>
-          `- ${formatShortDate(item.date)} ${item.type === "income" ? "수입" : "지출"} ${item.description}: ${formatKrw(item.amountKrw)}`
-      ),
-    ];
-
-    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `moneylog-report-${new Date().toISOString().slice(0, 10)}.md`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    notify.success("Markdown 리포트를 저장했습니다.");
   }
 
   const summaryCards = [
@@ -175,15 +178,17 @@ export function DashboardView() {
       tone: "text-primary-container",
     },
     { label: "활성 애드센스", value: String(data.summary.activeAdsense), tone: "text-secondary-container" },
-    { label: "당월 수입", value: formatKrw(data.summary.monthIncome), tone: "text-primary-container" },
-    { label: "당월 지출", value: formatKrw(data.summary.monthExpense), tone: "text-warning" },
+    { label: "당월 수입", value: formatManwon(data.summary.monthIncome), tone: "text-primary-container" },
+    { label: "당월 지출", value: formatManwon(data.summary.monthExpense), tone: "text-warning" },
   ];
+
+  const calendarMonthLabel = data.calendarMonthLabel || "당월";
 
   const activeRanking =
     rankingPeriod === "month" ? data.channelRanking.month : data.channelRanking.threeMonth;
 
   return (
-    <div className="space-y-5">
+    <div ref={reportRef} data-dashboard-screenshot className="space-y-5 bg-bg-base">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-headline-md text-text-primary">통합 리포트</h1>
@@ -191,12 +196,13 @@ export function DashboardView() {
             채널·계정·수입/지출을 한눈에 확인
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={handleExportMarkdown} disabled={loading || exporting}>
-            Markdown 내보내기
-          </Button>
-          <Button onClick={handleExportPdf} disabled={loading || exporting}>
-            {exporting ? "PDF 생성 중..." : "PDF 내보내기"}
+        <div className="flex flex-wrap gap-2" data-screenshot-hide>
+          <Button
+            onClick={handleExportScreenshot}
+            disabled={loading || exporting}
+            className="!bg-red-500 !text-white hover:!opacity-90"
+          >
+            {exporting ? "스크린샷 생성 중..." : "스크린샷 내보내기"}
           </Button>
         </div>
       </div>
@@ -206,36 +212,50 @@ export function DashboardView() {
           리포트 불러오는 중...
         </div>
       ) : (
-        <div ref={reportRef} className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {summaryCards.map((card) => (
-              <div
-                key={card.label}
-                className="rounded-xl border border-border-subtle bg-bg-surface p-5"
-              >
-                <p className="text-label-caps text-on-surface-variant">{card.label}</p>
-                <p className={cn("mt-2 text-2xl font-bold", card.tone)}>{card.value}</p>
-              </div>
-            ))}
+        <div className="space-y-5">
+          <div className="overflow-x-auto pb-1">
+            <div className="grid min-w-[760px] grid-cols-5 gap-4">
+              {summaryCards.map((card) => (
+                <SummaryCardItem key={card.label} {...card} />
+              ))}
+            </div>
           </div>
 
           <div className="rounded-xl border border-border-subtle bg-bg-surface p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-label-caps text-on-surface-variant">당월 순이익</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1">
+                <div className="flex flex-nowrap gap-2" data-screenshot-button-row>
+                  {DASHBOARD_NET_PROFIT_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      data-screenshot-button=""
+                      onClick={() => setNetProfitPeriod(option.value)}
+                      className={cn(
+                        "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-[1.3rem] py-2 text-body-sm font-semibold transition focus-ring-primary",
+                        getDashboardNetProfitButtonClassName(
+                          option.value,
+                          netProfitPeriod === option.value
+                        )
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-4 text-label-caps text-on-surface-variant">
+                  {dashboardNetProfitLabel(netProfitPeriod)}
+                </p>
                 <p
                   className={cn(
                     "mt-2 text-headline-md font-semibold",
-                    data.summary.monthNetProfit >= 0 ? "text-primary-container" : "text-red-400"
+                    activeNetProfit >= 0 ? "text-primary-container" : "text-red-400"
                   )}
                 >
-                  {formatKrw(data.summary.monthNetProfit)}
+                  {formatManwon(activeNetProfit)}
                 </p>
               </div>
-              <Link
-                href="/finance"
-                className="text-body-sm text-primary hover:underline"
-              >
+              <Link href="/finance" className="text-body-sm text-primary hover:underline">
                 장부 보기 →
               </Link>
             </div>
@@ -283,15 +303,18 @@ export function DashboardView() {
                 <div>
                   <h2 className="text-body-lg font-semibold text-text-primary">수입 상위 채널</h2>
                   <p className="mt-1 text-body-sm text-on-surface-variant">
-                    {rankingPeriod === "month" ? "당월 수입 기준 TOP 5" : "최근 3개월 수입 기준 TOP 5"}
+                    {rankingPeriod === "month"
+                      ? `${calendarMonthLabel} 수입 기준 TOP 5`
+                      : "최근 3개월 수입 기준 TOP 5"}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-nowrap gap-2" data-screenshot-button-row>
                   <button
                     type="button"
+                    data-screenshot-button=""
                     onClick={() => setRankingPeriod("month")}
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-body-sm font-semibold transition",
+                      "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 py-1.5 text-body-sm font-semibold transition",
                       rankingPeriod === "month"
                         ? "bg-primary-container text-text-primary glow-primary"
                         : "border border-border-subtle text-on-surface-variant hover:bg-surface-container-high"
@@ -301,9 +324,10 @@ export function DashboardView() {
                   </button>
                   <button
                     type="button"
+                    data-screenshot-button=""
                     onClick={() => setRankingPeriod("3m")}
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-body-sm font-semibold transition",
+                      "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 py-1.5 text-body-sm font-semibold transition",
                       rankingPeriod === "3m"
                         ? "bg-secondary-container text-on-secondary-container"
                         : "border border-border-subtle text-on-surface-variant hover:bg-surface-container-high"
@@ -313,28 +337,7 @@ export function DashboardView() {
                   </button>
                 </div>
               </div>
-              {activeRanking.length === 0 ? (
-                <p className="mt-6 text-body-sm text-on-surface-variant">집계할 수입 데이터가 없습니다.</p>
-              ) : (
-                <ol className="mt-4 space-y-3">
-                  {activeRanking.map((item, index) => (
-                    <li
-                      key={item.name}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle px-3 py-2.5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-container/15 text-body-sm font-bold text-primary-container">
-                          {index + 1}
-                        </span>
-                        <span className="text-body-sm font-medium text-text-primary">{item.name}</span>
-                      </div>
-                      <span className="text-body-sm font-semibold text-primary-container">
-                        {formatKrw(item.income)}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              )}
+              <ChannelRankingList items={activeRanking} />
             </div>
           </div>
 
@@ -372,23 +375,23 @@ export function DashboardView() {
                   ) : (
                     data.channels.map((channel) => (
                       <tr key={channel.id} className="border-b border-border-subtle/60">
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 align-middle">
                           <div className="font-medium text-text-primary">{channel.name}</div>
                           <div className="text-on-surface-variant">{channel.handle}</div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 align-middle">
                           <ContentFormatBadge format={channel.contentFormat} size="sm" />
                         </td>
-                        <td className="px-4 py-3 text-on-surface-variant">
+                        <td className="px-4 py-3 align-middle text-on-surface-variant">
                           {statusLabel(channel.status)}
                         </td>
-                        <td className="px-4 py-3 text-on-surface-variant">
+                        <td className="px-4 py-3 align-middle text-on-surface-variant">
                           {channel.youtubeAccountLabel || "—"}
                         </td>
-                        <td className="px-4 py-3 text-on-surface-variant">
+                        <td className="px-4 py-3 align-middle text-on-surface-variant">
                           {channel.adsenseAccountLabel || "—"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 align-middle">
                           {channel.hasRevenue ? (
                             <span className="text-primary-container">발생</span>
                           ) : (
@@ -422,28 +425,28 @@ export function DashboardView() {
                 data.recentTransactions.map((item) => (
                   <div
                     key={item.id}
-                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+                    className="flex items-center justify-between gap-4 px-5 py-3"
                   >
-                    <div>
-                      <p className="font-medium text-text-primary">{item.description}</p>
-                      <p className="text-body-sm text-on-surface-variant">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-text-primary">{item.description}</p>
+                      <p className="truncate text-body-sm text-on-surface-variant">
                         {formatShortDate(item.date)}
                         {item.category ? ` · ${item.category}` : ""}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p
+                    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                      <span className="text-body-sm text-on-surface-variant">
+                        {item.type === "income" ? "수입" : "지출"}
+                      </span>
+                      <span
                         className={cn(
-                          "font-semibold",
+                          "font-semibold tabular-nums",
                           item.type === "income" ? "text-primary-container" : "text-warning"
                         )}
                       >
                         {item.type === "income" ? "+" : "-"}
-                        {formatKrw(item.amountKrw)}
-                      </p>
-                      <p className="text-body-sm text-on-surface-variant">
-                        {item.type === "income" ? "수입" : "지출"}
-                      </p>
+                        {formatManwon(item.amountKrw)}
+                      </span>
                     </div>
                   </div>
                 ))

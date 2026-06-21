@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { SensitiveData } from "@/components/ui";
+import { RowActionButton, RowActionGroup, SensitiveData } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type { PhoneDeviceData } from "./types";
 
@@ -112,29 +112,17 @@ export function PhoneDeviceRow({
         {formatPaymentDay(device.paymentDay)}
       </td>
       <td className="px-3 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => onView(device.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-info"
-          >
+        <RowActionGroup>
+          <RowActionButton variant="view" onClick={() => onView(device.id)}>
             보기
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(device.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-primary"
-          >
+          </RowActionButton>
+          <RowActionButton variant="edit" onClick={() => onEdit(device.id)}>
             편집
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(device.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-red-400"
-          >
+          </RowActionButton>
+          <RowActionButton variant="delete" onClick={() => onDelete(device.id)}>
             삭제
-          </button>
-        </div>
+          </RowActionButton>
+        </RowActionGroup>
       </td>
     </tr>
   );

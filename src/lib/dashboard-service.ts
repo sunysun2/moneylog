@@ -1,4 +1,12 @@
 import { connectDB } from "@/lib/db";
+import {
+  formatCalendarMonthLabel,
+  formatMonthKey,
+  getCalendarMonthRange,
+  getCalendarThreeMonthRange,
+  getReferenceDateIso,
+  parseReferenceDate,
+} from "@/lib/calendar-month";
 import { getMonthlyTrends, getTransactionStats } from "@/lib/transaction-service";
 import { Channel } from "@/models/Channel";
 import { AdsenseAccount } from "@/models/AdsenseAccount";
@@ -13,22 +21,6 @@ type IncomeDoc = { description: string; amountKrw: number };
 function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split("-");
   return `${year.slice(-2)}.${month}`;
-}
-
-function getIncomeDateRange(period: "month" | "3m") {
-  const now = new Date();
-
-  if (period === "month") {
-    return {
-      start: new Date(now.getFullYear(), now.getMonth(), 1),
-      end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
-    };
-  }
-
-  return {
-    start: new Date(now.getFullYear(), now.getMonth() - 2, 1),
-    end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
-  };
 }
 
 function buildChannelRanking(docs: IncomeDoc[]): DashboardChannelRanking[] {
@@ -46,11 +38,14 @@ function buildChannelRanking(docs: IncomeDoc[]): DashboardChannelRanking[] {
     .slice(0, 5);
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(referenceDateInput?: string): Promise<DashboardData> {
   await connectDB();
 
-  const monthRange = getIncomeDateRange("month");
-  const threeMonthRange = getIncomeDateRange("3m");
+  const referenceDate = parseReferenceDate(referenceDateInput) ?? new Date();
+  const referenceDateIso = getReferenceDateIso(referenceDate);
+  const monthKey = formatMonthKey(referenceDate);
+  const monthRange = getCalendarMonthRange(referenceDate);
+  const threeMonthRange = getCalendarThreeMonthRange(referenceDate);
 
   const [
     totalChannels,
@@ -59,6 +54,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     activeYoutube,
     totalPhones,
     monthStats,
+    allStats,
+    threeMonthStats,
     monthlyTrends,
     recentDocs,
     monthIncomeDocs,
@@ -73,7 +70,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     AdsenseAccount.countDocuments({ status: "active" }),
     YoutubeAccount.countDocuments({ status: "active" }),
     PhoneDevice.countDocuments(),
-    getTransactionStats({ period: "month" }),
+    getTransactionStats({ month: monthKey }),
+    getTransactionStats({ period: "all" }),
+    getTransactionStats({ period: "3m", referenceDate: referenceDateIso }),
     getMonthlyTrends("1y"),
     Transaction.find().sort({ date: -1, createdAt: -1 }).limit(8),
     Transaction.find({
@@ -160,6 +159,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   }));
 
   return {
+    referenceDate: referenceDateIso,
+    calendarMonthLabel: formatCalendarMonthLabel(referenceDate),
     summary: {
       totalChannels,
       revenueChannels,
@@ -169,6 +170,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       monthIncome: monthStats.totalIncome,
       monthExpense: monthStats.totalExpense,
       monthNetProfit: monthStats.netProfit,
+      threeMonthNetProfit: threeMonthStats.netProfit,
+      allNetProfit: allStats.netProfit,
     },
     warnings,
     channels,

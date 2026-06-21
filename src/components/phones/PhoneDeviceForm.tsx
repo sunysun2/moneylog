@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { formatKoreanPhone } from "@/lib/phone-format";
+import { formatKoreanPhone, finalizeKoreanPhoneInput, finalizeKoreanPhoneOnSave } from "@/lib/phone-format";
 import { formatKoreanShortDateInput } from "@/lib/korean-short-date-format";
 import { Button, Input, Select } from "@/components/ui";
 import { SensitiveData } from "@/components/ui/SensitiveData";
@@ -17,7 +17,7 @@ interface PhoneDeviceFormProps {
   mode: FormMode;
   saving: boolean;
   onChange: (patch: Partial<PhoneDeviceFormState>) => void;
-  onSubmit: () => void;
+  onSubmit: (overrides?: Partial<PhoneDeviceFormState>) => void;
   onCancel: () => void;
 }
 
@@ -85,7 +85,8 @@ export function PhoneDeviceForm({
 
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!readOnly) onSubmit();
+    if (readOnly) return;
+    onSubmit({ devicePhone: finalizeKoreanPhoneOnSave(form.devicePhone) });
   }
 
   const fieldProps = readOnly ? { disabled: true, readOnly: true } : {};
@@ -135,6 +136,9 @@ export function PhoneDeviceForm({
                 value={form.devicePhone}
                 onChange={(e) =>
                   onChange({ devicePhone: formatKoreanPhone(e.target.value) })
+                }
+                onBlur={() =>
+                  onChange({ devicePhone: finalizeKoreanPhoneInput(form.devicePhone) })
                 }
                 placeholder="010-0000-0000"
                 sensitive

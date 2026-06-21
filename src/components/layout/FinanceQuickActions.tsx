@@ -76,7 +76,7 @@ export function FinanceQuickActions() {
 
   return (
     <>
-      <div className="space-y-3 px-3 py-4">
+      <div className="space-y-2 px-3 pt-2 pb-2">
         <p className="px-1 text-center text-label-caps !text-2xl !leading-8 text-on-surface-variant">
           빠른 입력
         </p>

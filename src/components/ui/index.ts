@@ -9,3 +9,4 @@ export { SensitiveData } from "./SensitiveData";
 export { Select } from "./Select";
 export { Textarea } from "./Textarea";
 export { Badge } from "./Badge";
+export { RowActionButton, RowActionGroup } from "./RowActionButton";

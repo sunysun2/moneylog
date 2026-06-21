@@ -2,6 +2,8 @@ export { YoutubeAccount } from "./YoutubeAccount";
 export { AdsenseAccount } from "./AdsenseAccount";
 export { PhoneDevice } from "./PhoneDevice";
 export { Channel } from "./Channel";
+export { Freelancer } from "./Freelancer";
 export { ChannelPreference } from "./ChannelPreference";
 export { Transaction } from "./Transaction";
 export { User } from "./User";
+export { EmailSchedule } from "./EmailSchedule";

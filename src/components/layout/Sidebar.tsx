@@ -64,7 +64,9 @@ export function Sidebar() {
             />
           ))}
         </nav>
-        <FinanceQuickActions />
+        <div className="shrink-0 pb-8">
+          <FinanceQuickActions />
+        </div>
       </aside>
 
       {/* Tablet icon rail */}

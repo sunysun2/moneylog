@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Badge } from "@/components/ui";
+import { Badge, RowActionButton, RowActionGroup } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { ContentFormatBadge } from "./ContentFormatBadge";
 import { type ChannelData } from "./types";
@@ -95,7 +95,7 @@ export function ChannelRow({
       </td>
       <td className="px-3 py-3 font-medium text-text-primary">{channel.name}</td>
       <td className="px-3 py-3 text-on-surface-variant">{channel.handle || "—"}</td>
-      <td className="px-3 py-3">
+      <td className="px-3 py-3 align-middle">
         <ContentFormatBadge format={channel.contentFormat} size="sm" />
       </td>
       <td className="px-3 py-3 text-on-surface-variant">{channel.category || "—"}</td>
@@ -125,29 +125,17 @@ export function ChannelRow({
         )}
       </td>
       <td className="px-3 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => onView(channel.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-info"
-          >
+        <RowActionGroup>
+          <RowActionButton variant="view" onClick={() => onView(channel.id)}>
             보기
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(channel.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-primary"
-          >
+          </RowActionButton>
+          <RowActionButton variant="edit" onClick={() => onEdit(channel.id)}>
             편집
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(channel.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-red-400"
-          >
+          </RowActionButton>
+          <RowActionButton variant="delete" onClick={() => onDelete(channel.id)}>
             삭제
-          </button>
-        </div>
+          </RowActionButton>
+        </RowActionGroup>
       </td>
     </tr>
   );

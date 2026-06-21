@@ -39,13 +39,15 @@ export interface TransactionStats {
 
 export type FormMode = "new" | "edit" | "view";
 export type TypeFilter = "all" | TransactionType;
-export type PeriodFilter = "all" | "1y" | "3m" | "month";
+export type PeriodFilter = "all" | "1y" | "3m" | "month" | "1w" | "today";
 
 export const PERIOD_FILTER_OPTIONS: { value: PeriodFilter; label: string }[] = [
   { value: "all", label: "전체 조회" },
   { value: "1y", label: "최근 1년 조회" },
   { value: "3m", label: "최근 3개월 조회" },
-  { value: "month", label: "당월 조회" },
+  { value: "month", label: "최근 1개월 조회" },
+  { value: "1w", label: "최근 일주일 조회" },
+  { value: "today", label: "금일 조회" },
 ];
 
 const PERIOD_FILTER_GHOST_CLASS =
@@ -62,6 +64,10 @@ export function getPeriodFilterButtonClassName(period: PeriodFilter, selected: b
     case "3m":
       return "bg-tertiary-container text-white";
     case "month":
+      return "bg-info text-white";
+    case "1w":
+      return "bg-warning text-text-primary";
+    case "today":
       return "bg-primary-container text-text-primary glow-primary";
   }
 }
@@ -74,10 +80,12 @@ export function periodFilterLabel(period: PeriodFilter): string {
       return "최근 1년";
     case "3m":
       return "최근 3개월";
-    case "month": {
-      const now = new Date();
-      return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
-    }
+    case "month":
+      return "최근 1개월";
+    case "1w":
+      return "최근 일주일";
+    case "today":
+      return "금일";
   }
 }
 
@@ -90,6 +98,24 @@ export const EXPENSE_REASON_OPTIONS = [
   "세금",
   "기타",
 ] as const;
+
+export const FREELANCER_EXPENSE_REASON = "프리랜서";
+export const FREELANCER_MEMO_SUFFIX = "+영상제작";
+
+export function formatFreelancerMemo(name: string): string {
+  return `${name.trim()}${FREELANCER_MEMO_SUFFIX}`;
+}
+
+export function parseFreelancerNameFromMemo(memo: string): string | null {
+  const trimmed = memo.trim();
+  if (!trimmed.endsWith(FREELANCER_MEMO_SUFFIX)) return null;
+  const name = trimmed.slice(0, -FREELANCER_MEMO_SUFFIX.length).trim();
+  return name || null;
+}
+
+export function isFreelancerExpenseReason(description: string): boolean {
+  return description === FREELANCER_EXPENSE_REASON;
+}
 
 export interface TransactionFormState {
   date: string;
@@ -140,6 +166,13 @@ export function validateTransactionForm(
   if (!form.description.trim()) {
     return type === "expense" ? "지출 사유를 선택해 주세요." : "채널명을 선택해 주세요.";
   }
+  if (
+    type === "expense" &&
+    isFreelancerExpenseReason(form.description) &&
+    !parseFreelancerNameFromMemo(form.category)
+  ) {
+    return "프리랜서를 선택해 주세요.";
+  }
   if (!parseManwonInput(form.amountKrw)) return "만원 단위 금액을 입력해 주세요.";
   if (!koreanShortDateToIso(form.date)) return "날짜를 올바르게 입력해 주세요.";
   return null;
@@ -160,6 +193,11 @@ export function sourceLabel(source: TransactionSource): string {
 
 export function formatKrw(value: number): string {
   return `${value.toLocaleString("ko-KR")}원`;
+}
+
+export function formatManwon(valueKrw: number): string {
+  const man = Math.round(valueKrw / 10_000);
+  return `${man.toLocaleString("ko-KR")}만원`;
 }
 
 export function formatUsd(value?: number): string {

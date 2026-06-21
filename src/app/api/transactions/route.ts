@@ -10,7 +10,7 @@ import {
 import type { TransactionType } from "@/models/Transaction";
 
 function parsePeriod(value: string | null): TransactionPeriod | undefined {
-  if (value === "all" || value === "month" || value === "3m" || value === "1y") {
+  if (value === "all" || value === "month" || value === "1w" || value === "today" || value === "3m" || value === "1y") {
     return value;
   }
   return undefined;
@@ -20,10 +20,12 @@ function parseFilters(searchParams: URLSearchParams): TransactionFilters {
   const type = searchParams.get("type");
   const month = searchParams.get("month") ?? undefined;
   const period = parsePeriod(searchParams.get("period"));
+  const referenceDate = searchParams.get("referenceDate") ?? undefined;
 
   return {
     month,
     period,
+    referenceDate,
     type:
       type === "income" || type === "expense" ? (type as TransactionType) : undefined,
   };

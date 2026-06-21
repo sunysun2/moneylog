@@ -5,6 +5,7 @@ import { Button } from "@/components/ui";
 import { SearchBar } from "@/components/layout/SearchBar";
 import { useSearchStore } from "@/stores/searchStore";
 import { notify } from "@/lib/notify";
+import { matchesPhoneNumberSearch } from "@/lib/phone-format";
 import { PhoneDeviceForm } from "./PhoneDeviceForm";
 import { PhoneDeviceTable } from "./PhoneDeviceTable";
 import {
@@ -54,7 +55,7 @@ export function PhoneDevicesView() {
     if (!q) return devices;
     return devices.filter(
       (d) =>
-        d.devicePhone.includes(q) ||
+        matchesPhoneNumberSearch(d.devicePhone, q) ||
         d.phoneModel?.toLowerCase().includes(q) ||
         d.mobileCarrier?.toLowerCase().includes(q) ||
         d.mvnoProvider?.toLowerCase().includes(q) ||
@@ -93,14 +94,14 @@ export function PhoneDevicesView() {
     setForm(EMPTY_FORM);
   }
 
-  async function handleSubmit() {
-    if (!form.devicePhone) {
-      notify.error("전화번호는 필수입니다.");
-      return;
+  async function handleSubmit(overrides?: Partial<PhoneDeviceFormState>) {
+    const submitForm = { ...form, ...overrides };
+    if (overrides) {
+      setForm(submitForm);
     }
 
     setSaving(true);
-    const payload = formToPayload(form);
+    const payload = formToPayload(submitForm);
 
     try {
       const res = await fetch(

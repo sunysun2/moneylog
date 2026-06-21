@@ -7,6 +7,7 @@ import {
   isoToKoreanShortDate,
   koreanShortDateToIso,
 } from "@/lib/korean-short-date-format";
+import { normalizeKoreanPhoneForSave } from "@/lib/phone-format";
 
 export interface OtpEntry {
   label: string;
@@ -132,7 +133,7 @@ export function formToPayload(form: YoutubeAccountFormState) {
     accountId: form.accountId,
     password: form.password,
     adsenseAccount: form.adsenseAccount || undefined,
-    phone: form.phone || undefined,
+    phone: normalizeKoreanPhoneForSave(form.phone),
     origin: form.origin,
     isInUse: form.isInUse,
     apiKey: form.channelName || undefined,

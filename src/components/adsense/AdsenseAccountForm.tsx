@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { notify } from "@/lib/notify";
-import { formatKoreanPhone } from "@/lib/phone-format";
+import { formatKoreanPhone, finalizeKoreanPhoneInput, finalizeKoreanPhoneOnSave } from "@/lib/phone-format";
 import { formatKoreanShortDateInput } from "@/lib/korean-short-date-format";
 import { Button, Input, Select, Textarea, Badge } from "@/components/ui";
 import { SensitiveData } from "@/components/ui/SensitiveData";
@@ -17,7 +17,7 @@ interface AdsenseAccountFormProps {
   saving: boolean;
   formKey: string;
   onChange: (patch: Partial<AdsenseAccountFormState>) => void;
-  onSubmit: () => void;
+  onSubmit: (overrides?: Partial<AdsenseAccountFormState>) => void;
   onCancel: () => void;
 }
 
@@ -142,7 +142,8 @@ export function AdsenseAccountForm({
 
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!readOnly) onSubmit();
+    if (readOnly) return;
+    onSubmit({ phone: finalizeKoreanPhoneOnSave(form.phone) });
   }
 
   const fieldProps = readOnly ? { disabled: true, readOnly: true } : {};
@@ -301,6 +302,7 @@ export function AdsenseAccountForm({
               label="전화번호"
               value={form.phone}
               onChange={(e) => onChange({ phone: formatKoreanPhone(e.target.value) })}
+              onBlur={() => onChange({ phone: finalizeKoreanPhoneInput(form.phone) })}
               placeholder="010-0000-0000"
               sensitive={!readOnly}
               {...fieldProps}

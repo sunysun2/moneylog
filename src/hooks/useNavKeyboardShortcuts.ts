@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { NAV_ITEMS } from "@/config/navigation";
+import { NAV_SHORTCUT_BY_KEY } from "@/config/navigation";
 import { dispatchFinanceQuickAction } from "@/lib/finance-quick-actions";
 import { canUseGlobalShortcut } from "@/lib/keyboard";
 
@@ -27,13 +27,11 @@ export function useNavKeyboardShortcuts() {
         return;
       }
 
-      const digit = Number(e.key);
-      if (!Number.isInteger(digit) || digit < 1 || digit > NAV_ITEMS.length) {
-        return;
-      }
+      const href = NAV_SHORTCUT_BY_KEY[e.key as keyof typeof NAV_SHORTCUT_BY_KEY];
+      if (!href) return;
 
       e.preventDefault();
-      router.push(NAV_ITEMS[digit - 1].href);
+      router.push(href);
     }
 
     window.addEventListener("keydown", onKeyDown);

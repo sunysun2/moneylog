@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Badge, SensitiveData } from "@/components/ui";
+import { Badge, RowActionButton, RowActionGroup, SensitiveData } from "@/components/ui";
 import { getOtpBadges, type YoutubeAccountData } from "./types";
 import { OtpUsageBadge } from "./OtpUsageToggle";
 import { cn } from "@/lib/cn";
@@ -139,29 +139,17 @@ export function YoutubeAccountRow({
         </div>
       </td>
       <td className="px-3 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => onView(account.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-info"
-          >
+        <RowActionGroup>
+          <RowActionButton variant="view" onClick={() => onView(account.id)}>
             보기
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(account.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-primary"
-          >
+          </RowActionButton>
+          <RowActionButton variant="edit" onClick={() => onEdit(account.id)}>
             편집
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(account.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-red-400"
-          >
+          </RowActionButton>
+          <RowActionButton variant="delete" onClick={() => onDelete(account.id)}>
             삭제
-          </button>
-        </div>
+          </RowActionButton>
+        </RowActionGroup>
       </td>
     </tr>
   );

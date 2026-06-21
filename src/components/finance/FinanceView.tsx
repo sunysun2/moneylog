@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import { SearchBar } from "@/components/layout/SearchBar";
-import { useSearchStore } from "@/stores/searchStore";
 import { notify } from "@/lib/notify";
 import { FINANCE_TRANSACTION_UPDATED_EVENT } from "@/lib/finance-quick-actions";
 import { cn } from "@/lib/cn";
@@ -36,8 +35,7 @@ const EMPTY_STATS: TransactionStats = {
 };
 
 export function FinanceView() {
-  const globalQuery = useSearchStore((s) => s.query);
-  const setGlobalQuery = useSearchStore((s) => s.setQuery);
+  const [searchQuery, setSearchQuery] = useState("");
   const [transactions, setTransactions] = useState<TransactionData[]>([]);
   const [stats, setStats] = useState<TransactionStats>(EMPTY_STATS);
   const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrendPoint[]>([]);
@@ -57,7 +55,7 @@ export function FinanceView() {
       const [listRes, statsRes, trendsRes] = await Promise.all([
         fetch(`/api/transactions?period=${periodFilter}${typeQuery}`),
         fetch(`/api/transactions/stats?period=${periodFilter}`),
-        fetch(`/api/transactions/monthly-trends?period=${periodFilter}`),
+        fetch(`/api/transactions/monthly-trends?period=${periodFilter}${typeQuery}`),
       ]);
 
       if (!listRes.ok || !statsRes.ok || !trendsRes.ok) throw new Error();
@@ -90,14 +88,14 @@ export function FinanceView() {
   }, [loadData]);
 
   const filteredTransactions = useMemo(() => {
-    const q = globalQuery.trim().toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
     if (!q) return transactions;
     return transactions.filter(
       (t) =>
         t.description.toLowerCase().includes(q) ||
         t.category?.toLowerCase().includes(q)
     );
-  }, [transactions, globalQuery]);
+  }, [transactions, searchQuery]);
 
   const periodLabel = periodFilterLabel(periodFilter);
 
@@ -197,9 +195,6 @@ export function FinanceView() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="md:hidden">
-            <SearchBar value={globalQuery} onChange={setGlobalQuery} />
-          </div>
           <Button
             variant="ghost"
             className="font-bold text-primary"
@@ -216,6 +211,13 @@ export function FinanceView() {
           </Button>
         </div>
       </div>
+
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="거래 설명·메모 검색"
+        className="max-w-none md:max-w-md"
+      />
 
       <FinanceSummary stats={stats} periodLabel={periodLabel} />
 
@@ -287,7 +289,7 @@ export function FinanceView() {
         />
       )}
 
-      <FinanceMonthlyChart data={monthlyTrends} loading={loading} />
+      <FinanceMonthlyChart data={monthlyTrends} loading={loading} typeFilter={typeFilter} />
     </div>
   );
 }

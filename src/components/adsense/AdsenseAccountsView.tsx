@@ -91,14 +91,19 @@ export function AdsenseAccountsView() {
     setForm(EMPTY_FORM);
   }
 
-  async function handleSubmit() {
-    if (!form.accountId || !form.password) {
+  async function handleSubmit(overrides?: Partial<AdsenseAccountFormState>) {
+    const submitForm = { ...form, ...overrides };
+    if (overrides) {
+      setForm(submitForm);
+    }
+
+    if (!submitForm.accountId || !submitForm.password) {
       notify.error("계정 ID와 비밀번호는 필수입니다.");
       return;
     }
 
     setSaving(true);
-    const payload = formToPayload(form);
+    const payload = formToPayload(submitForm);
 
     try {
       const res = await fetch(

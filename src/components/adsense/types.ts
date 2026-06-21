@@ -5,6 +5,7 @@ import {
   isoToKoreanShortDate,
   koreanShortDateToIso,
 } from "@/lib/korean-short-date-format";
+import { normalizeKoreanPhoneForSave } from "@/lib/phone-format";
 
 export type { OtpEntry };
 export { getOtpBadges };
@@ -149,7 +150,7 @@ export function formToPayload(form: AdsenseAccountFormState) {
       first?.youtubeAccountId || form.linkedYoutubeAccountId || undefined,
     bank: form.bank || undefined,
     accountNumber: form.accountNumber || undefined,
-    phone: form.phone || undefined,
+    phone: normalizeKoreanPhoneForSave(form.phone),
     address: form.address || undefined,
     appliedDate: koreanShortDateToIso(form.appliedDate),
     arrivedDate: koreanShortDateToIso(form.arrivedDate),

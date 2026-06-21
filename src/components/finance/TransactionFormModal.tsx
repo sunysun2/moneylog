@@ -7,7 +7,10 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import type { TransactionType } from "@/models/Transaction";
 import {
   EXPENSE_REASON_OPTIONS,
+  formatFreelancerMemo,
   formatManwonInput,
+  isFreelancerExpenseReason,
+  parseFreelancerNameFromMemo,
   type FormMode,
   type TransactionFormState,
 } from "./types";
@@ -37,6 +40,8 @@ export function TransactionFormModal({
   const fieldProps = readOnly ? { disabled: true, readOnly: true } : {};
   const isExpense = type === "expense";
   const [channelNames, setChannelNames] = useState<string[]>([]);
+  const [freelancerNames, setFreelancerNames] = useState<string[]>([]);
+  const isFreelancerExpense = isExpense && isFreelancerExpenseReason(form.description);
 
   useEffect(() => {
     if (!open || isExpense) return;
@@ -61,6 +66,29 @@ export function TransactionFormModal({
     };
   }, [open, isExpense]);
 
+  useEffect(() => {
+    if (!open || !isFreelancerExpense) return;
+
+    let cancelled = false;
+
+    fetch("/api/freelancers")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((freelancers: { name: string }[]) => {
+        if (cancelled) return;
+        const names = [
+          ...new Set(freelancers.map((freelancer) => freelancer.name.trim()).filter(Boolean)),
+        ].sort((a, b) => a.localeCompare(b, "ko"));
+        setFreelancerNames(names);
+      })
+      .catch(() => {
+        if (!cancelled) setFreelancerNames([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isFreelancerExpense]);
+
   const channelOptions = useMemo(() => {
     const options = [{ value: "", label: "채널 선택" }];
     for (const name of channelNames) {
@@ -82,6 +110,18 @@ export function TransactionFormModal({
     }
     return options;
   }, [form.description]);
+
+  const freelancerMemoOptions = useMemo(() => {
+    const options = [{ value: "", label: "프리랜서 선택" }];
+    for (const name of freelancerNames) {
+      options.push({ value: name, label: formatFreelancerMemo(name) });
+    }
+    const selectedName = parseFreelancerNameFromMemo(form.category);
+    if (selectedName && !freelancerNames.includes(selectedName)) {
+      options.push({ value: selectedName, label: form.category });
+    }
+    return options;
+  }, [freelancerNames, form.category]);
 
   const title =
     mode === "new"
@@ -133,7 +173,20 @@ export function TransactionFormModal({
           <Select
             label="지출 사유"
             value={form.description}
-            onChange={(e) => onChange({ description: e.target.value })}
+            onChange={(e) => {
+              const nextReason = e.target.value;
+              const patch: Partial<TransactionFormState> = { description: nextReason };
+
+              if (isFreelancerExpenseReason(nextReason)) {
+                if (!parseFreelancerNameFromMemo(form.category)) {
+                  patch.category = "";
+                }
+              } else if (parseFreelancerNameFromMemo(form.category)) {
+                patch.category = "";
+              }
+
+              onChange(patch);
+            }}
             options={expenseReasonOptions}
             disabled={readOnly}
           />
@@ -154,13 +207,35 @@ export function TransactionFormModal({
           inputMode="numeric"
           {...fieldProps}
         />
-        <Input
-          label={isExpense ? "메모" : "채널 정보"}
-          value={form.category}
-          onChange={(e) => onChange({ category: e.target.value })}
-          placeholder={isExpense ? "메모" : "채널 정보"}
-          {...fieldProps}
-        />
+        {isFreelancerExpense ? (
+          readOnly ? (
+            <Input
+              label="메모"
+              value={form.category}
+              readOnly
+              disabled
+            />
+          ) : (
+            <Select
+              label="메모"
+              value={parseFreelancerNameFromMemo(form.category) ?? ""}
+              onChange={(e) =>
+                onChange({
+                  category: e.target.value ? formatFreelancerMemo(e.target.value) : "",
+                })
+              }
+              options={freelancerMemoOptions}
+            />
+          )
+        ) : (
+          <Input
+            label={isExpense ? "메모" : "채널 정보"}
+            value={form.category}
+            onChange={(e) => onChange({ category: e.target.value })}
+            placeholder={isExpense ? "메모" : "채널 정보"}
+            {...fieldProps}
+          />
+        )}
       </div>
     </Modal>
   );

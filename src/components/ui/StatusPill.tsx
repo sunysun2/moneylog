@@ -6,7 +6,34 @@ interface StatusPillProps {
   variant: StatusVariant;
   children: React.ReactNode;
   className?: string;
+  exportMode?: boolean;
 }
+
+const exportVariantStyles: Record<
+  StatusVariant,
+  { backgroundColor: string; color: string; dotColor: string }
+> = {
+  active: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    color: "#10b981",
+    dotColor: "#10b981",
+  },
+  warning: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    color: "#f59e0b",
+    dotColor: "#f59e0b",
+  },
+  inactive: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    color: "#f59e0b",
+    dotColor: "#f59e0b",
+  },
+  pending: {
+    backgroundColor: "rgba(255, 185, 95, 0.15)",
+    color: "#ffb95f",
+    dotColor: "#ffb95f",
+  },
+};
 
 const variantStyles: Record<StatusVariant, string> = {
   active: "bg-primary-container/15 text-primary-container",
@@ -22,7 +49,42 @@ const dotStyles: Record<StatusVariant, string> = {
   pending: "bg-tertiary",
 };
 
-export function StatusPill({ variant, children, className }: StatusPillProps) {
+export function StatusPill({ variant, children, className, exportMode }: StatusPillProps) {
+  if (exportMode) {
+    const palette = exportVariantStyles[variant];
+
+    return (
+      <span
+        className={className}
+        style={{
+          display: "inline-block",
+          backgroundColor: palette.backgroundColor,
+          color: palette.color,
+          borderRadius: "9999px",
+          padding: "5px 12px",
+          fontSize: "13px",
+          lineHeight: "16px",
+          fontWeight: 500,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            display: "inline-block",
+            width: "6px",
+            height: "6px",
+            marginRight: "6px",
+            borderRadius: "9999px",
+            backgroundColor: palette.dotColor,
+            verticalAlign: "0.05em",
+          }}
+        />
+        <span style={{ verticalAlign: "baseline" }}>{children}</span>
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn(

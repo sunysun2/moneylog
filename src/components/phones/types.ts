@@ -2,6 +2,7 @@ import {
   isoToKoreanShortDate,
   koreanShortDateToIso,
 } from "@/lib/korean-short-date-format";
+import { normalizeKoreanPhoneForSave } from "@/lib/phone-format";
 
 export const MOBILE_CARRIER_OPTIONS = [
   { value: "SKT", label: "SKT" },
@@ -87,7 +88,7 @@ export function deviceToForm(device: PhoneDeviceData): PhoneDeviceFormState {
 
 export function formToPayload(form: PhoneDeviceFormState) {
   return {
-    devicePhone: form.devicePhone,
+    devicePhone: normalizeKoreanPhoneForSave(form.devicePhone) ?? "",
     phoneModel: form.phoneModel.trim() || undefined,
     mobileCarrier: form.mobileCarrier || undefined,
     mvnoProvider: form.mvnoProvider.trim() || undefined,

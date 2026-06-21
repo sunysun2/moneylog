@@ -1,14 +1,18 @@
 "use client";
 
 import type { DashboardNetProfitPoint } from "./types";
-import { formatKrw } from "@/components/finance/types";
+import { formatKrw, formatManwon } from "@/components/finance/types";
 
 interface DashboardNetProfitChartProps {
   data: DashboardNetProfitPoint[];
 }
 
 const CHART_HEIGHT = 160;
-const PADDING = { top: 12, right: 16, bottom: 32, left: 56 };
+const PADDING = { top: 28, right: 48, bottom: 32, left: 56 };
+const POINT_LABEL_OFFSET = 4;
+const POINT_RADIUS = 4;
+const AMOUNT_LABEL_COLOR = "#ffffff";
+const MAX_PLOT_WIDTH = 580;
 
 function toManwon(value: number) {
   return value / 10_000;
@@ -41,7 +45,7 @@ function computeYAxisScale(values: number[]) {
 export function DashboardNetProfitChart({ data }: DashboardNetProfitChartProps) {
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-border-subtle bg-bg-surface px-6 py-10 text-center text-body-sm text-on-surface-variant">
+      <div className="w-full rounded-xl border border-border-subtle bg-bg-surface px-6 py-10 text-center text-body-sm text-on-surface-variant">
         표시할 순이익 추이가 없습니다.
       </div>
     );
@@ -49,8 +53,11 @@ export function DashboardNetProfitChart({ data }: DashboardNetProfitChartProps) 
 
   const values = data.map((point) => point.netProfit);
   const { bottomMan, rangeMan, yTicks } = computeYAxisScale(values);
-  const chartWidth = Math.max(320, data.length * 56 + PADDING.left + PADDING.right);
-  const innerWidth = chartWidth - PADDING.left - PADDING.right;
+  const innerWidth = Math.min(
+    MAX_PLOT_WIDTH,
+    Math.max(200, (data.length - 1) * 44)
+  );
+  const chartWidth = PADDING.left + PADDING.right + innerWidth;
   const innerHeight = CHART_HEIGHT - PADDING.top - PADDING.bottom;
   const stepX = innerWidth / Math.max(data.length - 1, 1);
 
@@ -65,12 +72,18 @@ export function DashboardNetProfitChart({ data }: DashboardNetProfitChartProps) 
   const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-bg-surface p-5">
+    <div className="w-full rounded-xl border border-border-subtle bg-bg-surface p-5">
       <h2 className="text-body-lg font-semibold text-text-primary">월별 순이익 추이</h2>
       <p className="mt-1 text-body-sm text-on-surface-variant">최근 12개월 (만원)</p>
 
       <div className="mt-4 overflow-x-auto">
-        <svg viewBox={`0 0 ${chartWidth} ${CHART_HEIGHT}`} className="min-w-full" role="img">
+        <svg
+          viewBox={`0 0 ${chartWidth} ${CHART_HEIGHT}`}
+          className="max-w-full"
+          style={{ width: "100%", height: CHART_HEIGHT }}
+          role="img"
+          aria-label="월별 순이익 추이"
+        >
           <line
             x1={PADDING.left}
             y1={PADDING.top + innerHeight / 2}
@@ -115,6 +128,17 @@ export function DashboardNetProfitChart({ data }: DashboardNetProfitChartProps) 
 
           {points.map((point) => (
             <g key={point.month}>
+              {point.netProfit > 0 && (
+                <text
+                  x={point.x}
+                  y={point.y - POINT_RADIUS - POINT_LABEL_OFFSET}
+                  textAnchor="middle"
+                  className="text-[11px] font-medium"
+                  fill={AMOUNT_LABEL_COLOR}
+                >
+                  {formatManwon(point.netProfit)}
+                </text>
+              )}
               <circle cx={point.x} cy={point.y} r={4} fill="var(--color-primary-container)">
                 <title>{`${point.label} 순이익: ${formatKrw(point.netProfit)}`}</title>
               </circle>

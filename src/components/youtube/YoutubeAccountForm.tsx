@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { USD_TO_KRW_RATE, usdToKrw } from "@/lib/exchange";
-import { formatKoreanPhone } from "@/lib/phone-format";
+import { formatKoreanPhone, finalizeKoreanPhoneInput, finalizeKoreanPhoneOnSave } from "@/lib/phone-format";
 import { formatKoreanShortDateInput } from "@/lib/korean-short-date-format";
 import { notify } from "@/lib/notify";
 import {
@@ -32,7 +32,7 @@ interface YoutubeAccountFormProps {
   saving: boolean;
   adsenseAccounts: LinkOption[];
   onChange: (patch: Partial<YoutubeAccountFormState>) => void;
-  onSubmit: () => void;
+  onSubmit: (overrides?: Partial<YoutubeAccountFormState>) => void;
   onCancel: () => void;
 }
 
@@ -141,7 +141,8 @@ export function YoutubeAccountForm({
 
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!readOnly) onSubmit();
+    if (readOnly) return;
+    onSubmit({ phone: finalizeKoreanPhoneOnSave(form.phone) });
   }
 
   const fieldProps = readOnly ? { disabled: true, readOnly: true } : {};
@@ -245,6 +246,7 @@ export function YoutubeAccountForm({
               label="전화번호"
               value={form.phone}
               onChange={(e) => onChange({ phone: formatKoreanPhone(e.target.value) })}
+              onBlur={() => onChange({ phone: finalizeKoreanPhoneInput(form.phone) })}
               placeholder="010-0000-0000"
               sensitive={!readOnly}
               disabled={readOnly || Boolean(form.linkedAdsenseAccountId)}

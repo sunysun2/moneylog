@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge } from "@/components/ui";
+import { Badge, RowActionButton, RowActionGroup } from "@/components/ui";
 import {
-  formatKrw,
+  formatManwon,
   formatUsd,
   sourceLabel,
   type TransactionData,
@@ -54,33 +54,21 @@ export function TransactionRow({
         className={`px-3 py-3 font-medium ${isIncome ? "text-primary-container" : "text-warning"}`}
       >
         {isIncome ? "+" : "-"}
-        {formatKrw(transaction.amountKrw)}
+        {formatManwon(transaction.amountKrw)}
       </td>
       <td className="px-3 py-3 text-on-surface-variant">{formatUsd(transaction.amountUsd)}</td>
       <td className="px-3 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => onView(transaction.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-info"
-          >
+        <RowActionGroup>
+          <RowActionButton variant="view" onClick={() => onView(transaction.id)}>
             보기
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(transaction.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-primary"
-          >
+          </RowActionButton>
+          <RowActionButton variant="edit" onClick={() => onEdit(transaction.id)}>
             편집
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(transaction.id)}
-            className="rounded-lg px-2.5 py-1.5 text-body-sm text-on-surface-variant transition hover:bg-surface-container-high hover:text-red-400"
-          >
+          </RowActionButton>
+          <RowActionButton variant="delete" onClick={() => onDelete(transaction.id)}>
             삭제
-          </button>
-        </div>
+          </RowActionButton>
+        </RowActionGroup>
       </td>
     </tr>
   );
