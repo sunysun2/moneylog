@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { verifyPassword } from "@/lib/crypto";
 import { findLegacyUser } from "@/lib/user-setup";
+import { usesSecureAuthCookies } from "@/lib/auth-token";
 import { normalizeLoginId } from "@/lib/validate-auth-fields";
 
 const AUTH_USER_FIELDS = "passwordHash loginId nickname role";
@@ -13,6 +14,7 @@ async function loadAuthUser(loginId: string) {
 }
 
 export const authOptions: NextAuthOptions = {
+  useSecureCookies: usesSecureAuthCookies(),
   providers: [
     CredentialsProvider({
       name: "Credentials",

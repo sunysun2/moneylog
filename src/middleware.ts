@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
+import { getAuthToken } from "@/lib/auth-token";
 
 const publicPaths = [
   "/login",
@@ -22,10 +22,7 @@ export async function middleware(request: NextRequest) {
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );
 
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  const token = await getAuthToken(request);
 
   const isAdminRoute =
     pathname.startsWith("/admin") ||
