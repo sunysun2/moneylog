@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -22,48 +22,32 @@ export default function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/health", { cache: "no-store" }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const authError = searchParams.get("error");
+    if (authError === "CredentialsSignin") {
+      setError("아이디 또는 비밀번호가 올바르지 않습니다.");
+    }
+  }, [searchParams]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const result = await signIn("credentials", {
+      await signIn("credentials", {
         loginId,
         password,
-        redirect: false,
+        callbackUrl,
+        redirect: true,
       });
-
-      if (result?.error) {
-        if (result.error === "CredentialsSignin") {
-          setError("아이디 또는 비밀번호가 올바르지 않습니다.");
-        } else {
-          setError("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-          console.error("[login] signIn error:", result.error);
-        }
-        return;
-      }
-
-      if (!result?.ok) {
-        setError("아이디 또는 비밀번호가 올바르지 않습니다.");
-        return;
-      }
-
-      const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
-      const session = (await sessionRes.json()) as { user?: { loginId?: string } };
-
-      if (!session?.user?.loginId) {
-        setError(
-          "로그인 세션을 만들지 못했습니다. Cloudtype 환경 변수 NEXTAUTH_URL과 AUTH_TRUST_HOST를 확인한 뒤 재배포해 주세요."
-        );
-        return;
-      }
-
-      window.location.assign(callbackUrl);
     } catch (submitError) {
       console.error("[login] submit failed:", submitError);
       setError("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
       setLoading(false);
     }
   }

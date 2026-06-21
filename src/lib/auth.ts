@@ -10,7 +10,7 @@ import { normalizeLoginId } from "@/lib/validate-auth-fields";
 const AUTH_USER_FIELDS = "passwordHash loginId nickname role";
 
 async function loadAuthUser(loginId: string) {
-  return User.findOne({ loginId }).select(AUTH_USER_FIELDS);
+  return User.findOne({ loginId }).select(AUTH_USER_FIELDS).lean();
 }
 
 export const authOptions: NextAuthOptions = {

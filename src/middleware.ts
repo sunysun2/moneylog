@@ -13,6 +13,7 @@ const publicPaths = [
   "/api/signup",
   "/api/withdraw",
   "/api/cron",
+  "/api/health",
 ];
 
 export async function middleware(request: NextRequest) {
