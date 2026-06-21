@@ -2,12 +2,11 @@
 
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
 
@@ -30,12 +29,21 @@ export default function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      setError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      if (result.error === "CredentialsSignin") {
+        setError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      } else {
+        setError("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        console.error("[login] signIn error:", result.error);
+      }
       return;
     }
 
-    router.push(callbackUrl);
-    router.refresh();
+    if (!result?.ok) {
+      setError("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+
+    window.location.assign(callbackUrl);
   }
 
   return (

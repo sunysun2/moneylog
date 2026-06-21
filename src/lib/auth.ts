@@ -6,6 +6,12 @@ import { verifyPassword } from "@/lib/crypto";
 import { findLegacyUser } from "@/lib/user-setup";
 import { normalizeLoginId } from "@/lib/validate-auth-fields";
 
+const AUTH_USER_FIELDS = "passwordHash loginId nickname role";
+
+async function loadAuthUser(loginId: string) {
+  return User.findOne({ loginId }).select(AUTH_USER_FIELDS);
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -19,49 +25,53 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        await connectDB();
-        let user = await User.findOne({
-          loginId: normalizeLoginId(credentials.loginId),
-        });
+        try {
+          await connectDB();
+          const normalizedLoginId = normalizeLoginId(credentials.loginId);
 
-        if (!user) {
-          const legacy = await findLegacyUser();
-          if (legacy) {
-            const isLegacyValid = await verifyPassword(
-              credentials.password,
-              legacy.passwordHash
-            );
-            if (isLegacyValid) {
-              legacy.loginId = normalizeLoginId(credentials.loginId);
-              if (!legacy.nickname?.trim()) {
-                legacy.nickname = "관리자";
+          let user = await loadAuthUser(normalizedLoginId);
+
+          if (!user) {
+            const legacy = await findLegacyUser();
+            if (legacy) {
+              const isLegacyValid = await verifyPassword(
+                credentials.password,
+                legacy.passwordHash
+              );
+              if (isLegacyValid) {
+                await User.findByIdAndUpdate(legacy._id, {
+                  loginId: normalizedLoginId,
+                  nickname: legacy.nickname?.trim() || "관리자",
+                  role: "admin",
+                });
+                user = await loadAuthUser(normalizedLoginId);
               }
-              legacy.role = "admin";
-              await legacy.save();
-              user = legacy;
             }
           }
-        }
 
-        if (!user) {
+          if (!user?.loginId) {
+            return null;
+          }
+
+          const isValid = await verifyPassword(
+            credentials.password,
+            user.passwordHash
+          );
+
+          if (!isValid) {
+            return null;
+          }
+
+          return {
+            id: user._id.toString(),
+            loginId: user.loginId,
+            nickname: user.nickname,
+            role: user.role ?? "admin",
+          };
+        } catch (error) {
+          console.error("[auth] authorize failed:", error);
           return null;
         }
-
-        const isValid = await verifyPassword(
-          credentials.password,
-          user.passwordHash
-        );
-
-        if (!isValid) {
-          return null;
-        }
-
-        return {
-          id: user._id.toString(),
-          loginId: user.loginId,
-          nickname: user.nickname,
-          role: user.role,
-        };
       },
     }),
   ],

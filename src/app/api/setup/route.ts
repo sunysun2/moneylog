@@ -75,7 +75,8 @@ export async function POST(request: Request) {
 
     const user = await createAdminUser(loginId, nickname, password, recoveryKeyHash);
 
-    if (!user.loginId) {
+    const verified = await User.findOne({ loginId: user.loginId }).select("loginId role");
+    if (!verified?.loginId) {
       await User.findByIdAndDelete(user._id);
       return NextResponse.json(
         { error: "관리자 계정 저장에 실패했습니다. 다시 시도해 주세요." },

@@ -33,12 +33,11 @@ UserSchema.plugin(fieldEncryption, {
   secret: getFieldEncryptionKey(),
 });
 
-if (process.env.NODE_ENV === "development" && mongoose.models.User) {
+if (mongoose.models.User) {
   mongoose.deleteModel("User");
 }
 
-export const User: Model<IUser> =
-  mongoose.models.User ?? mongoose.model<IUser>("User", UserSchema);
+export const User: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
 
 export async function createAdminUser(
   loginId: string,

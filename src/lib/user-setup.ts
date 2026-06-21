@@ -19,5 +19,5 @@ export async function clearLegacyUsers(): Promise<number> {
 export async function findLegacyUser() {
   return User.findOne({
     $or: [{ loginId: { $exists: false } }, { loginId: null }, { loginId: "" }],
-  });
+  }).select("passwordHash loginId nickname role");
 }
