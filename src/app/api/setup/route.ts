@@ -6,6 +6,10 @@ import {
   hashRecoveryKey,
 } from "@/lib/crypto";
 import {
+  clearLegacyUsers,
+  isAdminSetupComplete,
+} from "@/lib/user-setup";
+import {
   validateLoginId,
   validateNickname,
   validatePasswordPair,
@@ -14,10 +18,9 @@ import {
 export async function GET() {
   try {
     await connectDB();
-    const existing = await User.findOne();
 
     return NextResponse.json({
-      isSetupComplete: Boolean(existing),
+      isSetupComplete: await isAdminSetupComplete(),
     });
   } catch {
     return NextResponse.json(
@@ -57,19 +60,28 @@ export async function POST(request: Request) {
     }
 
     await connectDB();
-    const existing = await User.findOne();
 
-    if (existing) {
+    if (await isAdminSetupComplete()) {
       return NextResponse.json(
         { error: "이미 초기 설정이 완료되었습니다." },
         { status: 409 }
       );
     }
 
+    await clearLegacyUsers();
+
     const recoveryKey = generateRecoveryKey();
     const recoveryKeyHash = hashRecoveryKey(recoveryKey);
 
-    await createAdminUser(loginId, nickname, password, recoveryKeyHash);
+    const user = await createAdminUser(loginId, nickname, password, recoveryKeyHash);
+
+    if (!user.loginId) {
+      await User.findByIdAndDelete(user._id);
+      return NextResponse.json(
+        { error: "관리자 계정 저장에 실패했습니다. 다시 시도해 주세요." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       recoveryKey,

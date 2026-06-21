@@ -47,13 +47,20 @@ export async function createAdminUser(
   recoveryKeyHash: string
 ): Promise<IUser> {
   const passwordHash = await hashPassword(password);
-  return User.create({
-    loginId: loginId.trim().toLowerCase(),
+  const normalizedLoginId = loginId.trim().toLowerCase();
+  const doc = await User.create({
+    loginId: normalizedLoginId,
     nickname: nickname.trim(),
     role: "admin",
     passwordHash,
     recoveryKeyHash,
   });
+
+  if (!doc.loginId) {
+    throw new Error("LOGIN_ID_NOT_SAVED");
+  }
+
+  return doc;
 }
 
 export async function createMemberUser(

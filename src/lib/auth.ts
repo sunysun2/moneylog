@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { verifyPassword } from "@/lib/crypto";
+import { findLegacyUser } from "@/lib/user-setup";
 import { normalizeLoginId } from "@/lib/validate-auth-fields";
 
 export const authOptions: NextAuthOptions = {
@@ -19,9 +20,28 @@ export const authOptions: NextAuthOptions = {
         }
 
         await connectDB();
-        const user = await User.findOne({
+        let user = await User.findOne({
           loginId: normalizeLoginId(credentials.loginId),
         });
+
+        if (!user) {
+          const legacy = await findLegacyUser();
+          if (legacy) {
+            const isLegacyValid = await verifyPassword(
+              credentials.password,
+              legacy.passwordHash
+            );
+            if (isLegacyValid) {
+              legacy.loginId = normalizeLoginId(credentials.loginId);
+              if (!legacy.nickname?.trim()) {
+                legacy.nickname = "관리자";
+              }
+              legacy.role = "admin";
+              await legacy.save();
+              user = legacy;
+            }
+          }
+        }
 
         if (!user) {
           return null;
