@@ -1,6 +1,7 @@
 import { type Model, Types } from "mongoose";
 import { connectDB } from "@/lib/db";
 import { hashForSearch } from "@/lib/hash";
+import { ownerFilter, toOwnerObjectId, type OwnerContext } from "@/lib/owner-query";
 import {
   AdsenseAccount,
   Channel,
@@ -57,6 +58,16 @@ const RESTORE_ORDER: { key: CollectionKey; model: Model<unknown> }[] = [
   { key: "transactions", model: Transaction as Model<unknown> },
 ];
 
+const USER_OWNED_KEYS: CollectionKey[] = [
+  "youtubeAccounts",
+  "adsenseAccounts",
+  "channels",
+  "channelPreferences",
+  "phoneDevices",
+  "freelancers",
+  "transactions",
+];
+
 const ISO_DATE_RE =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
@@ -92,13 +103,18 @@ function toObjectId(value: unknown): Types.ObjectId | undefined {
 
 function normalizeDocForImport(
   rawDoc: Record<string, unknown>,
-  collectionKey: CollectionKey
+  collectionKey: CollectionKey,
+  ownerId: Types.ObjectId
 ): Record<string, unknown> {
   const doc = reviveValue({ ...rawDoc }) as Record<string, unknown>;
 
   const objectId = toObjectId(doc._id);
   if (objectId) {
     doc._id = objectId;
+  }
+
+  if (collectionKey !== "users") {
+    doc.ownerId = ownerId;
   }
 
   if (collectionKey === "adsenseAccounts") {
@@ -163,12 +179,19 @@ export function parseBackupPayload(json: string): BackupPayload {
   return parsed as unknown as BackupPayload;
 }
 
-export async function exportBackupData(): Promise<BackupPayload> {
+export async function exportBackupData(ctx: OwnerContext): Promise<BackupPayload> {
   await connectDB();
+  const filter = ownerFilter(ctx.ownerId, ctx.isAdmin);
+  const ownerObjectId = toOwnerObjectId(ctx.ownerId);
 
   const collections = {} as BackupCollections;
   for (const { key, model } of RESTORE_ORDER) {
-    collections[key] = (await model.find().lean()) as Record<string, unknown>[];
+    if (key === "users") {
+      const user = await User.findById(ownerObjectId).lean();
+      collections.users = user ? [user as Record<string, unknown>] : [];
+    } else {
+      collections[key] = (await model.find(filter).lean()) as Record<string, unknown>[];
+    }
   }
 
   return {
@@ -179,14 +202,31 @@ export async function exportBackupData(): Promise<BackupPayload> {
   };
 }
 
-async function replaceAllData(payload: BackupPayload): Promise<{ counts: Record<string, number> }> {
-  const counts: Record<string, number> = {};
-
-  for (const { key, model } of [...RESTORE_ORDER].reverse()) {
-    await model.deleteMany({});
+async function deleteOwnerData(ctx: OwnerContext): Promise<void> {
+  const filter = ownerFilter(ctx.ownerId, ctx.isAdmin);
+  for (const key of [...USER_OWNED_KEYS].reverse()) {
+    const entry = RESTORE_ORDER.find((item) => item.key === key);
+    if (entry) {
+      await entry.model.deleteMany(filter);
+    }
   }
+}
+
+async function replaceOwnerData(
+  ctx: OwnerContext,
+  payload: BackupPayload
+): Promise<{ counts: Record<string, number> }> {
+  const counts: Record<string, number> = {};
+  const ownerObjectId = toOwnerObjectId(ctx.ownerId);
+
+  await deleteOwnerData(ctx);
 
   for (const { key, model } of RESTORE_ORDER) {
+    if (key === "users") {
+      counts[key] = 0;
+      continue;
+    }
+
     const docs = payload.collections[key] ?? [];
     if (docs.length === 0) {
       counts[key] = 0;
@@ -194,7 +234,7 @@ async function replaceAllData(payload: BackupPayload): Promise<{ counts: Record<
     }
 
     const normalized = docs.map((doc) =>
-      normalizeDocForImport(doc as Record<string, unknown>, key)
+      normalizeDocForImport(doc as Record<string, unknown>, key, ownerObjectId)
     );
 
     await model.create(normalized);
@@ -205,23 +245,24 @@ async function replaceAllData(payload: BackupPayload): Promise<{ counts: Record<
 }
 
 export async function importBackupData(
+  ctx: OwnerContext,
   payload: BackupPayload
 ): Promise<{ counts: Record<string, number> }> {
   await connectDB();
 
   let snapshot: BackupPayload | null = null;
   try {
-    snapshot = await exportBackupData();
+    snapshot = await exportBackupData(ctx);
   } catch (err) {
     console.error("백업 복원 전 스냅샷 생성 실패:", err);
   }
 
   try {
-    return await replaceAllData(payload);
+    return await replaceOwnerData(ctx, payload);
   } catch (err) {
     if (snapshot) {
       try {
-        await replaceAllData(snapshot);
+        await replaceOwnerData(ctx, snapshot);
       } catch (restoreErr) {
         console.error("백업 복원 롤백 실패:", restoreErr);
         throw new Error("IMPORT_FAILED_AND_RESTORE_FAILED");

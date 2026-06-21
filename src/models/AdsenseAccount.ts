@@ -24,6 +24,7 @@ export interface IAdsenseAccount extends Document {
   otps: { label: string; secret: string; notes: string }[];
   linkedYoutubeAccount?: Types.ObjectId;
   sortOrder: number;
+  ownerId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +55,7 @@ const AdsenseAccountSchema = new Schema<IAdsenseAccount>(
       ref: "YoutubeAccount",
     },
     sortOrder: { type: Number, default: 0 },
+    ownerId: { type: Schema.Types.ObjectId, ref: "User", index: true },
   },
   { timestamps: true }
 );

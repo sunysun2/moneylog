@@ -3,7 +3,6 @@
 import { cn } from "@/lib/cn";
 import { convertHangulToQwerty } from "@/lib/hangul-to-qwerty";
 import { useRef, useState, type ChangeEvent, type InputHTMLAttributes } from "react";
-import { useBlurStore } from "@/stores/blurStore";
 import { notify } from "@/lib/notify";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -35,7 +34,6 @@ export function Input({
   onCompositionEnd,
   ...props
 }: InputProps) {
-  const isBlurred = useBlurStore((s) => s.isBlurred);
   const [isHovered, setIsHovered] = useState(false);
   const [visible, setVisible] = useState(true);
   const isComposingRef = useRef(false);
@@ -94,7 +92,6 @@ export function Input({
     notify.success("클립보드에 복사되었습니다.");
   }
 
-  const showBlur = sensitive && isBlurred && !visible;
   const hasRightAction = (copyable && sensitive) || isPasswordField;
 
   return (
@@ -125,7 +122,6 @@ export function Input({
             "w-full rounded-lg border border-border-subtle bg-surface-container-lowest px-3 py-2.5 text-body-sm text-text-primary outline-none transition focus-ring-primary",
             sensitive && "font-data-mono",
             hasRightAction && "pr-20",
-            showBlur && "sensitive-data is-blurred",
             className
           )}
         />
@@ -140,7 +136,7 @@ export function Input({
               {visible ? "숨김" : "표시"}
             </button>
           )}
-          {copyable && sensitive && isHovered && !showBlur && (
+          {copyable && sensitive && isHovered && (
             <button
               type="button"
               onClick={handleCopy}

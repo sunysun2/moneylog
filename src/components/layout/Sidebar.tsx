@@ -2,10 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { NAV_ITEMS } from "@/config/navigation";
 import { NavIcon } from "@/components/icons/NavIcon";
 import { FinanceQuickActions } from "./FinanceQuickActions";
 import { cn } from "@/lib/cn";
+
+function useVisibleNavItems() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
+
+  return NAV_ITEMS.filter((item) => {
+    if ("adminOnly" in item && item.adminOnly) {
+      return isAdmin;
+    }
+    return true;
+  });
+}
 
 function NavLink({
   href,
@@ -40,6 +53,7 @@ function NavLink({
 
 export function Sidebar() {
   const pathname = usePathname();
+  const navItems = useVisibleNavItems();
 
   return (
     <>
@@ -54,7 +68,7 @@ export function Sidebar() {
           </Link>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}
@@ -81,7 +95,7 @@ export function Sidebar() {
           </Link>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-2 py-2">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}
@@ -99,10 +113,11 @@ export function Sidebar() {
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const navItems = useVisibleNavItems();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around bg-bg-base px-2 py-2 md:hidden">
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const isActive = pathname.startsWith(item.href);
         return (
           <Link

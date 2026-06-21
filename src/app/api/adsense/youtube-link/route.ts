@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import { findYoutubeLinks } from "@/lib/adsense-service";
 
 export async function GET(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const params = new URL(request.url).searchParams;
   const accountId = params.get("accountId")?.trim();
@@ -13,13 +13,13 @@ export async function GET(request: Request) {
 
   if (!accountId && !youtubeAccount && !youtubeAccountId) {
     return NextResponse.json(
-      { error: "연동 조회에 필요한 값이 없습니다." },
+      { error: "?? ??? ??? ?? ????." },
       { status: 400 }
     );
   }
 
   try {
-    const links = await findYoutubeLinks({
+    const links = await findYoutubeLinks(ctx, {
       accountId,
       youtubeAccount,
       youtubeAccountId,
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     });
   } catch {
     return NextResponse.json(
-      { error: "유튜브 계정 연동 정보를 불러오지 못했습니다." },
+      { error: "??? ?? ?? ??? ???? ?????." },
       { status: 500 }
     );
   }

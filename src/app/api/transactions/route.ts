@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   createTransaction,
   listTransactions,
@@ -32,33 +32,33 @@ function parseFilters(searchParams: URLSearchParams): TransactionFilters {
 }
 
 export async function GET(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
     const filters = parseFilters(new URL(request.url).searchParams);
-    const transactions = await listTransactions(filters);
+    const transactions = await listTransactions(ctx, filters);
     return NextResponse.json(transactions);
   } catch {
     return NextResponse.json(
-      { error: "거래 목록을 불러오지 못했습니다." },
+      { error: "?? ??? ???? ?????." },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
     const body = await request.json();
-    const transaction = await createTransaction(sanitizeTransactionPayload(body));
+    const transaction = await createTransaction(ctx, sanitizeTransactionPayload(body));
     return NextResponse.json(transaction, { status: 201 });
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      { error: "거래를 추가하지 못했습니다." },
+      { error: "??? ???? ?????." },
       { status: 500 }
     );
   }

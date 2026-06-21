@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   deleteYoutubeAccount,
   updateYoutubeAccount,
@@ -8,14 +8,14 @@ import {
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PUT(request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
     const body = await request.json();
-    const account = await updateYoutubeAccount(id, {
+    const account = await updateYoutubeAccount(ctx, id, {
       ...body,
       createdDate: body.createdDate ? new Date(body.createdDate) : undefined,
       purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
@@ -38,13 +38,13 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
-    const deleted = await deleteYoutubeAccount(id);
+    const deleted = await deleteYoutubeAccount(ctx, id);
     if (!deleted) {
       return NextResponse.json({ error: "계정을 찾을 수 없습니다." }, { status: 404 });
     }

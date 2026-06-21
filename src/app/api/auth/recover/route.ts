@@ -15,18 +15,11 @@ export async function POST(request: Request) {
     }
 
     await connectDB();
-    const user = await User.findOne();
+    const inputHash = hashRecoveryKey(recoveryKey);
+    const users = await User.find();
+    const user = users.find((doc) => inputHash === doc.recoveryKeyHash);
 
     if (!user) {
-      return NextResponse.json(
-        { error: "등록된 사용자가 없습니다." },
-        { status: 404 }
-      );
-    }
-
-    const inputHash = hashRecoveryKey(recoveryKey);
-
-    if (inputHash !== user.recoveryKeyHash) {
       return NextResponse.json(
         { error: "비상 복구 키가 올바르지 않습니다." },
         { status: 401 }

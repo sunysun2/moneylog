@@ -7,6 +7,12 @@ import {
   getReferenceDateIso,
   parseReferenceDate,
 } from "@/lib/calendar-month";
+import {
+  mergeOwnerFilter,
+  ownerFilter,
+  toOwnerObjectId,
+  type OwnerContext,
+} from "@/lib/owner-query";
 import { getMonthlyTrends, getTransactionStats } from "@/lib/transaction-service";
 import { Channel } from "@/models/Channel";
 import { AdsenseAccount } from "@/models/AdsenseAccount";
@@ -38,7 +44,10 @@ function buildChannelRanking(docs: IncomeDoc[]): DashboardChannelRanking[] {
     .slice(0, 5);
 }
 
-export async function getDashboardData(referenceDateInput?: string): Promise<DashboardData> {
+export async function getDashboardData(
+  ctx: OwnerContext,
+  referenceDateInput?: string
+): Promise<DashboardData> {
   await connectDB();
 
   const referenceDate = parseReferenceDate(referenceDateInput) ?? new Date();
@@ -46,6 +55,7 @@ export async function getDashboardData(referenceDateInput?: string): Promise<Das
   const monthKey = formatMonthKey(referenceDate);
   const monthRange = getCalendarMonthRange(referenceDate);
   const threeMonthRange = getCalendarThreeMonthRange(referenceDate);
+  const owner = ownerFilter(ctx.ownerId, ctx.isAdmin);
 
   const [
     totalChannels,
@@ -65,34 +75,61 @@ export async function getDashboardData(referenceDateInput?: string): Promise<Das
     channelWarnings,
     channelDocs,
   ] = await Promise.all([
-    Channel.countDocuments(),
-    Channel.countDocuments({ hasRevenue: true }),
-    AdsenseAccount.countDocuments({ status: "active" }),
-    YoutubeAccount.countDocuments({ status: "active" }),
-    PhoneDevice.countDocuments(),
-    getTransactionStats({ month: monthKey }),
-    getTransactionStats({ period: "all" }),
-    getTransactionStats({ period: "3m", referenceDate: referenceDateIso }),
-    getMonthlyTrends("1y"),
-    Transaction.find().sort({ date: -1, createdAt: -1 }).limit(8),
-    Transaction.find({
-      type: "income",
-      date: { $gte: monthRange.start, $lt: monthRange.end },
-    }).select("description amountKrw"),
-    Transaction.find({
-      type: "income",
-      date: { $gte: threeMonthRange.start, $lt: threeMonthRange.end },
-    }).select("description amountKrw"),
-    YoutubeAccount.find({ status: { $in: ["warning", "deleted", "inactive"] } })
+    Channel.countDocuments(owner),
+    Channel.countDocuments({ ...owner, hasRevenue: true }),
+    AdsenseAccount.countDocuments({ ...owner, status: "active" }),
+    YoutubeAccount.countDocuments({ ...owner, status: "active" }),
+    PhoneDevice.countDocuments(owner),
+    getTransactionStats(ctx, { month: monthKey }),
+    getTransactionStats(ctx, { period: "all" }),
+    getTransactionStats(ctx, { period: "3m", referenceDate: referenceDateIso }),
+    getMonthlyTrends(ctx, "1y"),
+    Transaction.find(owner).sort({ date: -1, createdAt: -1 }).limit(8),
+    Transaction.find(
+      mergeOwnerFilter(
+        { type: "income", date: { $gte: monthRange.start, $lt: monthRange.end } },
+        ctx.ownerId,
+        ctx.isAdmin
+      )
+    ).select("description amountKrw"),
+    Transaction.find(
+      mergeOwnerFilter(
+        {
+          type: "income",
+          date: { $gte: threeMonthRange.start, $lt: threeMonthRange.end },
+        },
+        ctx.ownerId,
+        ctx.isAdmin
+      )
+    ).select("description amountKrw"),
+    YoutubeAccount.find(
+      mergeOwnerFilter(
+        { status: { $in: ["warning", "deleted", "inactive"] } },
+        ctx.ownerId,
+        ctx.isAdmin
+      )
+    )
       .select("accountId status")
       .sort({ updatedAt: -1 }),
-    AdsenseAccount.find({ status: { $in: ["warning", "deleted", "inactive"] } })
+    AdsenseAccount.find(
+      mergeOwnerFilter(
+        { status: { $in: ["warning", "deleted", "inactive"] } },
+        ctx.ownerId,
+        ctx.isAdmin
+      )
+    )
       .select("accountId status")
       .sort({ updatedAt: -1 }),
-    Channel.find({ status: { $in: ["warning", "deleted", "inactive"] } })
+    Channel.find(
+      mergeOwnerFilter(
+        { status: { $in: ["warning", "deleted", "inactive"] } },
+        ctx.ownerId,
+        ctx.isAdmin
+      )
+    )
       .select("name handle status")
       .sort({ updatedAt: -1 }),
-    Channel.find()
+    Channel.find(owner)
       .sort({ sortOrder: 1, createdAt: 1 })
       .populate("youtubeAccount", "accountId")
       .populate("adsenseAccount", "accountId"),

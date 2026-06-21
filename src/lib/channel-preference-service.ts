@@ -1,5 +1,10 @@
 import { connectDB } from "@/lib/db";
 import {
+  ownerFilter,
+  toOwnerObjectId,
+  type OwnerContext,
+} from "@/lib/owner-query";
+import {
   ChannelPreference,
   DEFAULT_CATEGORIES,
   DEFAULT_COUNTRIES,
@@ -24,22 +29,29 @@ function normalizeTemplates(value: unknown): string[] {
     .filter(Boolean);
 }
 
-async function getOrCreatePreferences() {
+async function getOrCreatePreferences(ctx: OwnerContext) {
   await connectDB();
-  let doc = await ChannelPreference.findOne();
+  const filter = ownerFilter(ctx.ownerId, ctx.isAdmin);
+  let doc = await ChannelPreference.findOne(filter);
   if (!doc) {
     doc = await ChannelPreference.create({
       categories: DEFAULT_CATEGORIES,
       countries: DEFAULT_COUNTRIES,
+      ownerId: toOwnerObjectId(ctx.ownerId),
     });
   }
   return doc;
 }
 
-export async function getChannelPreferences(): Promise<ChannelPreferencesData> {
-  const doc = await getOrCreatePreferences();
+export async function getChannelPreferences(
+  ctx: OwnerContext
+): Promise<ChannelPreferencesData> {
+  const doc = await getOrCreatePreferences(ctx);
   const templates = normalizeTemplates(doc.templates);
-  if (templates.length !== (doc.templates?.length ?? 0) || doc.templates?.some((t) => typeof t !== "string")) {
+  if (
+    templates.length !== (doc.templates?.length ?? 0) ||
+    doc.templates?.some((t) => typeof t !== "string")
+  ) {
     doc.templates = templates;
     await doc.save();
   }
@@ -51,10 +63,11 @@ export async function getChannelPreferences(): Promise<ChannelPreferencesData> {
 }
 
 export async function updateChannelPreferences(
+  ctx: OwnerContext,
   data: Partial<ChannelPreferencesData>
 ): Promise<ChannelPreferencesData> {
   await connectDB();
-  const doc = await getOrCreatePreferences();
+  const doc = await getOrCreatePreferences(ctx);
   if (data.categories) doc.categories = data.categories;
   if (data.countries) doc.countries = data.countries;
   if (data.templates) doc.templates = data.templates;

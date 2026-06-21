@@ -18,7 +18,7 @@ const variantStyles: Record<ButtonVariant, string> = {
   ghost:
     "border border-border-subtle bg-transparent text-on-surface hover:bg-surface-container-high",
   danger:
-    "bg-error-container/20 text-error hover:bg-error-container/30",
+    "bg-red-600 text-white hover:bg-red-700 border border-red-700/60",
 };
 
 export function Button({

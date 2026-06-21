@@ -1,36 +1,36 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   getChannelPreferences,
   updateChannelPreferences,
 } from "@/lib/channel-preference-service";
 
 export async function GET() {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
-    const preferences = await getChannelPreferences();
+    const preferences = await getChannelPreferences(ctx);
     return NextResponse.json(preferences);
   } catch {
     return NextResponse.json(
-      { error: "설정을 불러오지 못했습니다." },
+      { error: "??? ???? ?????." },
       { status: 500 }
     );
   }
 }
 
 export async function PUT(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
     const body = await request.json();
-    const preferences = await updateChannelPreferences(body);
+    const preferences = await updateChannelPreferences(ctx, body);
     return NextResponse.json(preferences);
   } catch {
     return NextResponse.json(
-      { error: "설정을 저장하지 못했습니다." },
+      { error: "??? ???? ?????." },
       { status: 500 }
     );
   }

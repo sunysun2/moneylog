@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import { isValidMongoId } from "@/lib/mongodb-id";
 import { listFreelancerExpenses } from "@/lib/freelancer-service";
 import type { FreelancerExpensePeriod } from "@/components/freelancers/types";
@@ -20,8 +20,8 @@ function parsePeriod(value: string | null): FreelancerExpensePeriod | null {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
   if (!isValidMongoId(id)) {
@@ -34,7 +34,7 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const result = await listFreelancerExpenses(id, period);
+    const result = await listFreelancerExpenses(ctx, id, period);
 
     if (!result) {
       return NextResponse.json({ error: "프리랜서를 찾을 수 없습니다." }, { status: 404 });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   deletePhoneDevice,
   updatePhoneDevice,
@@ -19,14 +19,14 @@ function parseBody(body: Record<string, unknown>) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
     const body = await request.json();
-    const device = await updatePhoneDevice(id, parseBody(body));
+    const device = await updatePhoneDevice(ctx, id, parseBody(body));
 
     if (!device) {
       return NextResponse.json({ error: "휴대폰을 찾을 수 없습니다." }, { status: 404 });
@@ -42,13 +42,13 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
-    const deleted = await deletePhoneDevice(id);
+    const deleted = await deletePhoneDevice(ctx, id);
     if (!deleted) {
       return NextResponse.json({ error: "휴대폰을 찾을 수 없습니다." }, { status: 404 });
     }

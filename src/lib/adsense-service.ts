@@ -1,5 +1,11 @@
 import { connectDB } from "@/lib/db";
 import { hashForSearch } from "@/lib/hash";
+import {
+  mergeOwnerFilter,
+  ownerFilter,
+  toOwnerObjectId,
+  type OwnerContext,
+} from "@/lib/owner-query";
 import { AdsenseAccount, type IAdsenseAccount } from "@/models/AdsenseAccount";
 import { YoutubeAccount } from "@/models/YoutubeAccount";
 import type { AdsenseAccountData, LinkedYoutubeEntry } from "@/components/adsense/types";
@@ -64,14 +70,21 @@ function normalizeAccountLabel(value: string) {
   return value.trim().toLowerCase();
 }
 
-async function findAllYoutubeByAdsenseAccountRef(adsenseAccountId: string) {
+async function findAllYoutubeByAdsenseAccountRef(
+  ctx: OwnerContext,
+  adsenseAccountId: string
+) {
   await connectDB();
   const normalized = normalizeAccountLabel(adsenseAccountId);
   if (!normalized) return [];
 
-  const docs = await YoutubeAccount.find({
-    adsenseAccount: { $exists: true, $nin: [null, ""] },
-  }).sort({ sortOrder: 1, createdAt: 1 });
+  const docs = await YoutubeAccount.find(
+    mergeOwnerFilter(
+      { adsenseAccount: { $exists: true, $nin: [null, ""] } },
+      ctx.ownerId,
+      ctx.isAdmin
+    )
+  ).sort({ sortOrder: 1, createdAt: 1 });
 
   return docs
     .filter(
@@ -80,69 +93,80 @@ async function findAllYoutubeByAdsenseAccountRef(adsenseAccountId: string) {
     .slice(0, MAX_LINKED_YOUTUBE_ACCOUNTS);
 }
 
-async function findYoutubeByAdsenseAccountRef(adsenseAccountId: string) {
-  const docs = await findAllYoutubeByAdsenseAccountRef(adsenseAccountId);
+async function findYoutubeByAdsenseAccountRef(
+  ctx: OwnerContext,
+  adsenseAccountId: string
+) {
+  const docs = await findAllYoutubeByAdsenseAccountRef(ctx, adsenseAccountId);
   return docs[0] ?? null;
 }
 
-export async function findYoutubeLinkById(youtubeAccountId: string) {
+export async function findYoutubeLinkById(ctx: OwnerContext, youtubeAccountId: string) {
   await connectDB();
-  const youtube = await YoutubeAccount.findById(youtubeAccountId);
+  const youtube = await YoutubeAccount.findOne(
+    mergeOwnerFilter({ _id: youtubeAccountId }, ctx.ownerId, ctx.isAdmin)
+  );
   if (!youtube) return null;
   return serializeYoutubeLink(youtube);
 }
 
-export async function findYoutubeLinkByAccountId(accountId: string) {
+export async function findYoutubeLinkByAccountId(ctx: OwnerContext, accountId: string) {
   await connectDB();
-  const youtube = await YoutubeAccount.findOne({
-    accountIdHash: hashForSearch(accountId),
-  });
+  const youtube = await YoutubeAccount.findOne(
+    mergeOwnerFilter(
+      { accountIdHash: hashForSearch(accountId) },
+      ctx.ownerId,
+      ctx.isAdmin
+    )
+  );
 
   if (!youtube) return null;
 
   return serializeYoutubeLink(youtube);
 }
 
-export async function findYoutubeLink(options: {
-  accountId?: string;
-  youtubeAccount?: string;
-  youtubeAccountId?: string;
-}) {
+export async function findYoutubeLink(
+  ctx: OwnerContext,
+  options: {
+    accountId?: string;
+    youtubeAccount?: string;
+    youtubeAccountId?: string;
+  }
+) {
   const adsenseAccountId = options.accountId?.trim();
   const youtubeAccountEmail = options.youtubeAccount?.trim();
 
-  // 1) 유튜브 탭에서 저장한 adsenseAccount ↔ 애드센스 accountId 매칭
   if (adsenseAccountId) {
-    const byAdsenseRef = await findYoutubeByAdsenseAccountRef(adsenseAccountId);
+    const byAdsenseRef = await findYoutubeByAdsenseAccountRef(ctx, adsenseAccountId);
     if (byAdsenseRef) return serializeYoutubeLink(byAdsenseRef);
   }
 
-  // 2) 이미 연결된 유튜브 계정 ID
   if (options.youtubeAccountId) {
-    const byId = await findYoutubeLinkById(options.youtubeAccountId);
+    const byId = await findYoutubeLinkById(ctx, options.youtubeAccountId);
     if (byId) return byId;
   }
 
-  // 3) 애드센스 폼의 유튜브 계정 이메일 ↔ 유튜브 accountId
   if (youtubeAccountEmail) {
-    const byYoutubeEmail = await findYoutubeLinkByAccountId(youtubeAccountEmail);
+    const byYoutubeEmail = await findYoutubeLinkByAccountId(ctx, youtubeAccountEmail);
     if (byYoutubeEmail) return byYoutubeEmail;
   }
 
-  // 4) 동일 이메일 fallback
   if (adsenseAccountId) {
-    const bySameId = await findYoutubeLinkByAccountId(adsenseAccountId);
+    const bySameId = await findYoutubeLinkByAccountId(ctx, adsenseAccountId);
     if (bySameId) return bySameId;
   }
 
   return null;
 }
 
-export async function findYoutubeLinks(options: {
-  accountId?: string;
-  youtubeAccount?: string;
-  youtubeAccountId?: string;
-}): Promise<YoutubeLinkData[]> {
+export async function findYoutubeLinks(
+  ctx: OwnerContext,
+  options: {
+    accountId?: string;
+    youtubeAccount?: string;
+    youtubeAccountId?: string;
+  }
+): Promise<YoutubeLinkData[]> {
   const adsenseAccountId = options.accountId?.trim();
   const youtubeAccountEmail = options.youtubeAccount?.trim();
   const seen = new Set<string>();
@@ -156,7 +180,7 @@ export async function findYoutubeLinks(options: {
   }
 
   if (adsenseAccountId) {
-    const docs = await findAllYoutubeByAdsenseAccountRef(adsenseAccountId);
+    const docs = await findAllYoutubeByAdsenseAccountRef(ctx, adsenseAccountId);
     for (const doc of docs) {
       appendLink(serializeYoutubeLink(doc));
     }
@@ -164,15 +188,15 @@ export async function findYoutubeLinks(options: {
   }
 
   if (options.youtubeAccountId) {
-    appendLink(await findYoutubeLinkById(options.youtubeAccountId));
+    appendLink(await findYoutubeLinkById(ctx, options.youtubeAccountId));
   }
 
   if (youtubeAccountEmail) {
-    appendLink(await findYoutubeLinkByAccountId(youtubeAccountEmail));
+    appendLink(await findYoutubeLinkByAccountId(ctx, youtubeAccountEmail));
   }
 
   if (adsenseAccountId) {
-    appendLink(await findYoutubeLinkByAccountId(adsenseAccountId));
+    appendLink(await findYoutubeLinkByAccountId(ctx, adsenseAccountId));
   }
 
   return links;
@@ -203,11 +227,15 @@ function enrichAccountWithLinks(
   };
 }
 
-async function buildYoutubeLinksByAdsenseRef() {
+async function buildYoutubeLinksByAdsenseRef(ctx: OwnerContext) {
   await connectDB();
-  const docs = await YoutubeAccount.find({
-    adsenseAccount: { $exists: true, $nin: [null, ""] },
-  }).sort({ sortOrder: 1, createdAt: 1 });
+  const docs = await YoutubeAccount.find(
+    mergeOwnerFilter(
+      { adsenseAccount: { $exists: true, $nin: [null, ""] } },
+      ctx.ownerId,
+      ctx.isAdmin
+    )
+  ).sort({ sortOrder: 1, createdAt: 1 });
 
   const map = new Map<string, YoutubeLinkData[]>();
 
@@ -241,9 +269,11 @@ function adsenseStatusFromAccountStatus(status: AccountStatus): AdsenseLinkStatu
   return "linked";
 }
 
-export async function findAdsenseLinkById(adsenseAccountId: string) {
+export async function findAdsenseLinkById(ctx: OwnerContext, adsenseAccountId: string) {
   await connectDB();
-  const adsense = await AdsenseAccount.findById(adsenseAccountId);
+  const adsense = await AdsenseAccount.findOne(
+    mergeOwnerFilter({ _id: adsenseAccountId }, ctx.ownerId, ctx.isAdmin)
+  );
   if (!adsense) return null;
 
   const otps = (adsense.otps ?? []) as OtpEntry[];
@@ -260,12 +290,12 @@ export async function findAdsenseLinkById(adsenseAccountId: string) {
   };
 }
 
-async function applyYoutubeLink(data: Record<string, unknown>) {
+async function applyYoutubeLink(ctx: OwnerContext, data: Record<string, unknown>) {
   const accountId = String(data.accountId ?? "");
   const youtubeAccount = String(data.youtubeAccount ?? "");
   const linkedYoutubeAccountId = String(data.linkedYoutubeAccount ?? "");
 
-  const links = await findYoutubeLinks({
+  const links = await findYoutubeLinks(ctx, {
     accountId,
     youtubeAccount,
     youtubeAccountId: linkedYoutubeAccountId,
@@ -291,10 +321,13 @@ async function applyYoutubeLink(data: Record<string, unknown>) {
   };
 }
 
-export async function listAdsenseAccounts(): Promise<AdsenseAccountData[]> {
+export async function listAdsenseAccounts(ctx: OwnerContext): Promise<AdsenseAccountData[]> {
   await connectDB();
-  const docs = await AdsenseAccount.find().sort({ sortOrder: 1, createdAt: 1 });
-  const linkMap = await buildYoutubeLinksByAdsenseRef();
+  const docs = await AdsenseAccount.find(ownerFilter(ctx.ownerId, ctx.isAdmin)).sort({
+    sortOrder: 1,
+    createdAt: 1,
+  });
+  const linkMap = await buildYoutubeLinksByAdsenseRef(ctx);
 
   return docs.map((doc) => {
     const base = serializeAccount(doc);
@@ -304,56 +337,65 @@ export async function listAdsenseAccounts(): Promise<AdsenseAccountData[]> {
 }
 
 export async function createAdsenseAccount(
+  ctx: OwnerContext,
   data: Record<string, unknown>
 ): Promise<AdsenseAccountData> {
   await connectDB();
-  const count = await AdsenseAccount.countDocuments();
-  const payload = await applyYoutubeLink({
+  const count = await AdsenseAccount.countDocuments(ownerFilter(ctx.ownerId, ctx.isAdmin));
+  const payload = await applyYoutubeLink(ctx, {
     ...data,
     accountIdHash: hashForSearch(String(data.accountId)),
     sortOrder: count,
+    ownerId: toOwnerObjectId(ctx.ownerId),
   });
   const doc = await AdsenseAccount.create(payload);
-  const links = await findYoutubeLinks({ accountId: String(data.accountId ?? "") });
+  const links = await findYoutubeLinks(ctx, { accountId: String(data.accountId ?? "") });
   return enrichAccountWithLinks(serializeAccount(doc), links);
 }
 
 export async function updateAdsenseAccount(
+  ctx: OwnerContext,
   id: string,
   data: Record<string, unknown>
 ): Promise<AdsenseAccountData | null> {
   await connectDB();
   const payload = data.accountId
-    ? await applyYoutubeLink({
+    ? await applyYoutubeLink(ctx, {
         ...data,
         accountIdHash: hashForSearch(String(data.accountId)),
       })
     : data;
 
-  const doc = await AdsenseAccount.findByIdAndUpdate(
-    id,
+  const doc = await AdsenseAccount.findOneAndUpdate(
+    mergeOwnerFilter({ _id: id }, ctx.ownerId, ctx.isAdmin),
     { $set: payload },
     { new: true, runValidators: true }
   );
   if (!doc) return null;
 
-  const links = await findYoutubeLinks({ accountId: doc.accountId });
+  const links = await findYoutubeLinks(ctx, { accountId: doc.accountId });
   return enrichAccountWithLinks(serializeAccount(doc), links);
 }
 
-export async function deleteAdsenseAccount(id: string): Promise<boolean> {
+export async function deleteAdsenseAccount(ctx: OwnerContext, id: string): Promise<boolean> {
   await connectDB();
-  const result = await AdsenseAccount.findByIdAndDelete(id);
+  const result = await AdsenseAccount.findOneAndDelete(
+    mergeOwnerFilter({ _id: id }, ctx.ownerId, ctx.isAdmin)
+  );
   return Boolean(result);
 }
 
 export async function reorderAdsenseAccounts(
+  ctx: OwnerContext,
   items: { id: string; sortOrder: number }[]
 ): Promise<void> {
   await connectDB();
   await Promise.all(
     items.map((item) =>
-      AdsenseAccount.findByIdAndUpdate(item.id, { sortOrder: item.sortOrder })
+      AdsenseAccount.findOneAndUpdate(
+        mergeOwnerFilter({ _id: item.id }, ctx.ownerId, ctx.isAdmin),
+        { sortOrder: item.sortOrder }
+      )
     )
   );
 }

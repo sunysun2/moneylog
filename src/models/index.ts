@@ -6,4 +6,5 @@ export { Freelancer } from "./Freelancer";
 export { ChannelPreference } from "./ChannelPreference";
 export { Transaction } from "./Transaction";
 export { User } from "./User";
+export { SignupRequest } from "./SignupRequest";
 export { EmailSchedule } from "./EmailSchedule";

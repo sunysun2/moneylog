@@ -1,4 +1,4 @@
-import mongoose, { Schema, type Document, type Model } from "mongoose";
+import mongoose, { Schema, type Document, type Model, Types } from "mongoose";
 import { fieldEncryption } from "mongoose-field-encryption";
 import { getFieldEncryptionKey } from "@/lib/encryption";
 
@@ -11,6 +11,7 @@ export interface IFreelancer extends Document {
   channel?: string;
   nasId?: string;
   nasPassword?: string;
+  ownerId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,7 @@ const FreelancerSchema = new Schema<IFreelancer>(
     channel: { type: String },
     nasId: { type: String },
     nasPassword: { type: String },
+    ownerId: { type: Schema.Types.ObjectId, ref: "User", index: true },
   },
   { timestamps: true }
 );

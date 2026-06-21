@@ -1,29 +1,29 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import { createYoutubeAccount, listYoutubeAccounts } from "@/lib/youtube-service";
 
 export async function GET() {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
-    const accounts = await listYoutubeAccounts();
+    const accounts = await listYoutubeAccounts(ctx);
     return NextResponse.json(accounts);
   } catch {
     return NextResponse.json(
-      { error: "계정 목록을 불러오지 못했습니다." },
+      { error: "?? ??? ???? ?????." },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
     const body = await request.json();
-    const account = await createYoutubeAccount({
+    const account = await createYoutubeAccount(ctx, {
       ...body,
       createdDate: body.createdDate ? new Date(body.createdDate) : undefined,
       purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      { error: "계정을 추가하지 못했습니다." },
+      { error: "??? ???? ?????." },
       { status: 500 }
     );
   }

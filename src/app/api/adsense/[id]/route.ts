@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   deleteAdsenseAccount,
   updateAdsenseAccount,
@@ -16,14 +16,14 @@ function parseDates(body: Record<string, unknown>) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
     const body = await request.json();
-    const account = await updateAdsenseAccount(id, parseDates(body));
+    const account = await updateAdsenseAccount(ctx, id, parseDates(body));
 
     if (!account) {
       return NextResponse.json({ error: "계정을 찾을 수 없습니다." }, { status: 404 });
@@ -39,13 +39,13 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
-    const deleted = await deleteAdsenseAccount(id);
+    const deleted = await deleteAdsenseAccount(ctx, id);
     if (!deleted) {
       return NextResponse.json({ error: "계정을 찾을 수 없습니다." }, { status: 404 });
     }

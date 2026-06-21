@@ -79,7 +79,7 @@ async function main() {
 
   await connectDB();
 
-  const userResult = await User.deleteMany({});
+  await User.deleteMany({});
   const accounts = await resetEncryptedAccountPasswords(
     YoutubeAccount,
     AdsenseAccount,
@@ -87,7 +87,7 @@ async function main() {
   );
 
   console.log("비밀번호 초기화 완료");
-  console.log(`- 관리자 계정 삭제: ${userResult.deletedCount}건`);
+  console.log("- 관리자 계정 삭제 완료");
   console.log(`- 유튜브 계정 비밀번호 초기화: ${accounts.youtubeCount}건`);
   console.log(`- 애드센스 계정 비밀번호 초기화: ${accounts.adsenseCount}건`);
   console.log(`- 휴대폰 민감 정보 초기화: ${accounts.phoneCount}건`);

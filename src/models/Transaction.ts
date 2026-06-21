@@ -1,4 +1,4 @@
-import mongoose, { Schema, type Document, type Model } from "mongoose";
+import mongoose, { Schema, type Document, type Model, Types } from "mongoose";
 
 export type TransactionType = "income" | "expense";
 export type TransactionSource =
@@ -17,6 +17,7 @@ export interface ITransaction extends Document {
   amountUsd?: number;
   referenceModel?: string;
   referenceId?: string;
+  ownerId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,7 @@ const TransactionSchema = new Schema<ITransaction>(
     amountUsd: { type: Number },
     referenceModel: { type: String },
     referenceId: { type: String },
+    ownerId: { type: Schema.Types.ObjectId, ref: "User", index: true },
   },
   { timestamps: true }
 );

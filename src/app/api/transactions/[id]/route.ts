@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import { deleteTransaction, sanitizeTransactionPayload, updateTransaction } from "@/lib/transaction-service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PUT(request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
     const body = await request.json();
-    const transaction = await updateTransaction(id, sanitizeTransactionPayload(body));
+    const transaction = await updateTransaction(ctx, id, sanitizeTransactionPayload(body));
 
     if (!transaction) {
       return NextResponse.json({ error: "거래를 찾을 수 없습니다." }, { status: 404 });
@@ -29,13 +29,13 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
 
   try {
-    const deleted = await deleteTransaction(id);
+    const deleted = await deleteTransaction(ctx, id);
     if (!deleted) {
       return NextResponse.json({ error: "거래를 찾을 수 없습니다." }, { status: 404 });
     }

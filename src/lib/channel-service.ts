@@ -1,5 +1,11 @@
 import mongoose, { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
+import {
+  mergeOwnerFilter,
+  ownerFilter,
+  toOwnerObjectId,
+  type OwnerContext,
+} from "@/lib/owner-query";
 import { Channel, type IChannel } from "@/models/Channel";
 import type { ChannelData } from "@/components/channels/types";
 import type { ContentFormat } from "@/models/Channel";
@@ -160,9 +166,9 @@ function applyChannelPayload(doc: IChannel, data: Record<string, unknown>) {
   }
 }
 
-export async function listChannels(): Promise<ChannelData[]> {
+export async function listChannels(ctx: OwnerContext): Promise<ChannelData[]> {
   await connectDB();
-  const docs = await Channel.find()
+  const docs = await Channel.find(ownerFilter(ctx.ownerId, ctx.isAdmin))
     .sort({ sortOrder: 1, createdAt: 1 })
     .populate("youtubeAccount", "accountId")
     .populate("adsenseAccount", "accountId");
@@ -170,12 +176,14 @@ export async function listChannels(): Promise<ChannelData[]> {
 }
 
 export async function createChannel(
+  ctx: OwnerContext,
   data: Record<string, unknown>
 ): Promise<ChannelData> {
   await connectDB();
-  const count = await Channel.countDocuments();
+  const count = await Channel.countDocuments(ownerFilter(ctx.ownerId, ctx.isAdmin));
   const doc = new Channel();
   applyChannelPayload(doc, sanitizeChannelPayload({ ...data, sortOrder: count }));
+  doc.ownerId = toOwnerObjectId(ctx.ownerId);
   await doc.save();
   await doc.populate([
     { path: "youtubeAccount", select: "accountId" },
@@ -185,11 +193,14 @@ export async function createChannel(
 }
 
 export async function updateChannel(
+  ctx: OwnerContext,
   id: string,
   data: Record<string, unknown>
 ): Promise<ChannelData | null> {
   await connectDB();
-  const doc = await Channel.findById(id);
+  const doc = await Channel.findOne(
+    mergeOwnerFilter({ _id: id }, ctx.ownerId, ctx.isAdmin)
+  );
   if (!doc) return null;
 
   applyChannelPayload(doc, sanitizeChannelPayload(data));
@@ -201,19 +212,25 @@ export async function updateChannel(
   return serializeChannel(doc);
 }
 
-export async function deleteChannel(id: string): Promise<boolean> {
+export async function deleteChannel(ctx: OwnerContext, id: string): Promise<boolean> {
   await connectDB();
-  const result = await Channel.findByIdAndDelete(id);
+  const result = await Channel.findOneAndDelete(
+    mergeOwnerFilter({ _id: id }, ctx.ownerId, ctx.isAdmin)
+  );
   return Boolean(result);
 }
 
 export async function reorderChannels(
+  ctx: OwnerContext,
   items: { id: string; sortOrder: number }[]
 ): Promise<void> {
   await connectDB();
   await Promise.all(
     items.map((item) =>
-      Channel.findByIdAndUpdate(item.id, { sortOrder: item.sortOrder })
+      Channel.findOneAndUpdate(
+        mergeOwnerFilter({ _id: item.id }, ctx.ownerId, ctx.isAdmin),
+        { sortOrder: item.sortOrder }
+      )
     )
   );
 }

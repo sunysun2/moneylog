@@ -11,6 +11,7 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
 
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,7 @@ export default function LoginForm() {
     setLoading(true);
 
     const result = await signIn("credentials", {
+      loginId,
       password,
       redirect: false,
     });
@@ -28,7 +30,7 @@ export default function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      setError("비밀번호가 올바르지 않습니다.");
+      setError("아이디 또는 비밀번호가 올바르지 않습니다.");
       return;
     }
 
@@ -39,10 +41,17 @@ export default function LoginForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-base px-4">
       <div className="w-full max-w-md rounded-xl border border-border-subtle bg-bg-surface p-8">
-        <h1 className="text-display text-text-primary">MoneyLog</h1>
-        <p className="mt-2 text-body-sm text-text-muted">마스터 비밀번호로 로그인</p>
+        <h1 className="text-display text-primary-container">MoneyLog</h1>
+        <p className="mt-2 text-body-sm text-text-muted">아이디와 비밀번호로 로그인</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <Input
+            label="아이디"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            autoComplete="username"
+            required
+          />
           <Input
             label="비밀번호"
             type="password"
@@ -63,6 +72,18 @@ export default function LoginForm() {
           비밀번호를 잊으셨나요?{" "}
           <Link href="/recover" className="text-primary hover:underline">
             비상 복구
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-body-sm text-text-muted">
+          계정이 없나요?{" "}
+          <Link href="/signup" className="text-primary hover:underline">
+            가입 신청
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-body-sm text-text-muted">
+          탈퇴가 필요하신가요?{" "}
+          <Link href="/withdraw" className="text-primary hover:underline">
+            회원 탈퇴
           </Link>
         </p>
       </div>

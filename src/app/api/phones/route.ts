@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   createPhoneDevice,
   listPhoneDevices,
@@ -17,32 +17,32 @@ function parseBody(body: Record<string, unknown>) {
 }
 
 export async function GET() {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
-    const devices = await listPhoneDevices();
+    const devices = await listPhoneDevices(ctx);
     return NextResponse.json(devices);
   } catch {
     return NextResponse.json(
-      { error: "휴대폰 목록을 불러오지 못했습니다." },
+      { error: "??? ??? ???? ?????." },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
     const body = await request.json();
-    const device = await createPhoneDevice(parseBody(body));
+    const device = await createPhoneDevice(ctx, parseBody(body));
     return NextResponse.json(device, { status: 201 });
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      { error: "휴대폰을 추가하지 못했습니다." },
+      { error: "???? ???? ?????." },
       { status: 500 }
     );
   }

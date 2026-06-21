@@ -1,4 +1,4 @@
-import mongoose, { Schema, type Document, type Model } from "mongoose";
+import mongoose, { Schema, type Document, type Model, Types } from "mongoose";
 import { fieldEncryption } from "mongoose-field-encryption";
 import { getFieldEncryptionKey } from "@/lib/encryption";
 import { hashForSearch } from "@/lib/hash";
@@ -29,6 +29,7 @@ export interface IYoutubeAccount extends Document {
   accountCreatedDate?: Date;
   status: AccountStatus;
   sortOrder: number;
+  ownerId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,6 +64,7 @@ const YoutubeAccountSchema = new Schema<IYoutubeAccount>(
       default: "active",
     },
     sortOrder: { type: Number, default: 0 },
+    ownerId: { type: Schema.Types.ObjectId, ref: "User", index: true },
   },
   { timestamps: true }
 );

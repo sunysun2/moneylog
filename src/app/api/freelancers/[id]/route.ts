@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import { isValidMongoId } from "@/lib/mongodb-id";
 import { deleteFreelancer, updateFreelancer } from "@/lib/freelancer-service";
 
@@ -10,8 +10,8 @@ function invalidIdResponse() {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
   if (!isValidMongoId(id)) return invalidIdResponse();
@@ -23,7 +23,7 @@ export async function PUT(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "이름은 필수입니다." }, { status: 400 });
     }
 
-    const freelancer = await updateFreelancer(id, body);
+    const freelancer = await updateFreelancer(ctx, id, body);
 
     if (!freelancer) {
       return NextResponse.json({ error: "프리랜서를 찾을 수 없습니다." }, { status: 404 });
@@ -39,14 +39,14 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const { id } = await context.params;
   if (!isValidMongoId(id)) return invalidIdResponse();
 
   try {
-    const deleted = await deleteFreelancer(id);
+    const deleted = await deleteFreelancer(ctx, id);
     if (!deleted) {
       return NextResponse.json({ error: "프리랜서를 찾을 수 없습니다." }, { status: 404 });
     }

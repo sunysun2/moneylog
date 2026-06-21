@@ -3,6 +3,7 @@ import { verifyPassword } from "@/lib/crypto";
 import { User } from "@/models/User";
 
 export async function verifyMasterPassword(
+  userId: string,
   password: string
 ): Promise<{ ok: true } | { ok: false; reason: "missing" | "invalid" }> {
   const trimmed = password.trim();
@@ -11,7 +12,7 @@ export async function verifyMasterPassword(
   }
 
   await connectDB();
-  const user = await User.findOne().select("passwordHash").lean();
+  const user = await User.findById(userId).select("passwordHash").lean();
   if (!user) {
     return { ok: false, reason: "missing" };
   }

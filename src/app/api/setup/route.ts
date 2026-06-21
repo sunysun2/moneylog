@@ -5,6 +5,11 @@ import {
   generateRecoveryKey,
   hashRecoveryKey,
 } from "@/lib/crypto";
+import {
+  validateLoginId,
+  validateNickname,
+  validatePasswordPair,
+} from "@/lib/validate-auth-fields";
 
 export async function GET() {
   try {
@@ -24,9 +29,27 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { password } = await request.json();
+    const body = await request.json();
+    const loginId = String(body.loginId ?? "");
+    const nickname = String(body.nickname ?? "");
+    const password = String(body.password ?? "");
 
-    if (!password || password.length < 8) {
+    const loginIdError = validateLoginId(loginId);
+    if (loginIdError) {
+      return NextResponse.json({ error: loginIdError }, { status: 400 });
+    }
+
+    const nicknameError = validateNickname(nickname);
+    if (nicknameError) {
+      return NextResponse.json({ error: nicknameError }, { status: 400 });
+    }
+
+    const passwordError = validatePasswordPair(password, password);
+    if (passwordError && password.length < 8) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
+    }
+
+    if (password.length < 8) {
       return NextResponse.json(
         { error: "비밀번호는 8자 이상이어야 합니다." },
         { status: 400 }
@@ -46,7 +69,7 @@ export async function POST(request: Request) {
     const recoveryKey = generateRecoveryKey();
     const recoveryKeyHash = hashRecoveryKey(recoveryKey);
 
-    await createAdminUser(password, recoveryKeyHash);
+    await createAdminUser(loginId, nickname, password, recoveryKeyHash);
 
     return NextResponse.json({
       recoveryKey,

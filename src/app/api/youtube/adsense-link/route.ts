@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import { findAdsenseLinkById } from "@/lib/adsense-service";
 
 export async function GET(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   const adsenseAccountId = new URL(request.url).searchParams
     .get("adsenseAccountId")
@@ -12,13 +12,13 @@ export async function GET(request: Request) {
 
   if (!adsenseAccountId) {
     return NextResponse.json(
-      { error: "애드센스 계정 ID가 필요합니다." },
+      { error: "???? ?? ID? ?????." },
       { status: 400 }
     );
   }
 
   try {
-    const link = await findAdsenseLinkById(adsenseAccountId);
+    const link = await findAdsenseLinkById(ctx, adsenseAccountId);
     if (!link) {
       return NextResponse.json({ linked: false });
     }
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ linked: true, ...link });
   } catch {
     return NextResponse.json(
-      { error: "애드센스 계정 연동 정보를 불러오지 못했습니다." },
+      { error: "???? ?? ?? ??? ???? ?????." },
       { status: 500 }
     );
   }

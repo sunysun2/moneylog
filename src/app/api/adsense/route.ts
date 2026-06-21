@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/api-auth";
+import { requireOwnerContext } from "@/lib/api-auth";
 import {
   createAdsenseAccount,
   listAdsenseAccounts,
@@ -14,32 +14,32 @@ function parseDates(body: Record<string, unknown>) {
 }
 
 export async function GET() {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
-    const accounts = await listAdsenseAccounts();
+    const accounts = await listAdsenseAccounts(ctx);
     return NextResponse.json(accounts);
   } catch {
     return NextResponse.json(
-      { error: "계정 목록을 불러오지 못했습니다." },
+      { error: "?? ??? ???? ?????." },
       { status: 500 }
     );
   }
 }
 
 export async function POST(request: Request) {
-  const { error } = await requireSession();
-  if (error) return error;
+  const { ctx, error } = await requireOwnerContext();
+  if (error || !ctx) return error!;
 
   try {
     const body = await request.json();
-    const account = await createAdsenseAccount(parseDates(body));
+    const account = await createAdsenseAccount(ctx, parseDates(body));
     return NextResponse.json(account, { status: 201 });
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      { error: "계정을 추가하지 못했습니다." },
+      { error: "??? ???? ?????." },
       { status: 500 }
     );
   }

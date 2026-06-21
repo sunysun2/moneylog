@@ -69,5 +69,20 @@ export function NavIcon({ name, className }: NavIconProps) {
           <path d="M3 7l9 6 9-6" />
         </svg>
       );
+    case "admin":
+      return (
+        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M12 3l7 4v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V7l7-4z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+      );
+    case "members":
+      return (
+        <svg className={shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 11l-2 2-4-4" />
+        </svg>
+      );
   }
 }

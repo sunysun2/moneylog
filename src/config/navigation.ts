@@ -54,11 +54,31 @@ export const NAV_ITEMS = [
     shortLabel: "이메일",
     icon: "email" as const,
     shortcutKey: "8",
+    adminOnly: true,
+  },
+  {
+    href: "/admin/signups",
+    label: "가입 승인",
+    shortLabel: "승인",
+    icon: "admin" as const,
+    shortcutKey: "9",
+    adminOnly: true,
+  },
+  {
+    href: "/admin/members",
+    label: "회원 탈퇴",
+    shortLabel: "탈퇴",
+    icon: "members" as const,
+    adminOnly: true,
   },
 ] as const;
+
+export type NavItem = (typeof NAV_ITEMS)[number];
 
 export type NavIconName = (typeof NAV_ITEMS)[number]["icon"];
 
 export const NAV_SHORTCUT_BY_KEY = Object.fromEntries(
-  NAV_ITEMS.map((item) => [item.shortcutKey, item.href])
-) as Record<(typeof NAV_ITEMS)[number]["shortcutKey"], (typeof NAV_ITEMS)[number]["href"]>;
+  NAV_ITEMS.flatMap((item) =>
+    "shortcutKey" in item ? [[item.shortcutKey, item.href] as const] : []
+  )
+) as Record<string, string>;

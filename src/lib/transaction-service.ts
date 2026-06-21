@@ -1,5 +1,11 @@
 import { connectDB } from "@/lib/db";
 import {
+  mergeOwnerFilter,
+  ownerFilter,
+  toOwnerObjectId,
+  type OwnerContext,
+} from "@/lib/owner-query";
+import {
   getCalendarThreeMonthRange,
   formatMonthKey,
   parseReferenceDate,
@@ -98,7 +104,7 @@ function buildDateFilter(period?: TransactionPeriod, referenceDate?: Date) {
   return { start, end };
 }
 
-function buildQuery(filters?: TransactionFilters) {
+function buildQuery(ctx: OwnerContext, filters?: TransactionFilters) {
   const query: Record<string, unknown> = {};
   if (filters?.type) query.type = filters.type;
 
@@ -107,7 +113,7 @@ function buildQuery(filters?: TransactionFilters) {
     if (range) {
       query.date = { $gte: range.start, $lt: range.end };
     }
-    return query;
+    return mergeOwnerFilter(query, ctx.ownerId, ctx.isAdmin);
   }
 
   const referenceDate = parseReferenceDate(filters?.referenceDate) ?? undefined;
@@ -116,22 +122,27 @@ function buildQuery(filters?: TransactionFilters) {
     query.date = { $gte: range.start, $lt: range.end };
   }
 
-  return query;
+  return mergeOwnerFilter(query, ctx.ownerId, ctx.isAdmin);
 }
 
 export async function listTransactions(
+  ctx: OwnerContext,
   filters?: TransactionFilters
 ): Promise<TransactionData[]> {
   await connectDB();
-  const docs = await Transaction.find(buildQuery(filters)).sort({ date: -1, createdAt: -1 });
+  const docs = await Transaction.find(buildQuery(ctx, filters)).sort({
+    date: -1,
+    createdAt: -1,
+  });
   return docs.map(serializeTransaction);
 }
 
 export async function getTransactionStats(
+  ctx: OwnerContext,
   filters?: Omit<TransactionFilters, "type">
 ): Promise<TransactionStats> {
   await connectDB();
-  const query = buildQuery(filters);
+  const query = buildQuery(ctx, filters);
   const docs = await Transaction.find(query);
 
   let totalIncome = 0;
@@ -184,11 +195,12 @@ function listMonthKeysForPeriod(period: TransactionPeriod, referenceDate?: Date)
 }
 
 export async function getMonthlyTrends(
+  ctx: OwnerContext,
   period: TransactionPeriod,
   type?: TransactionFilters["type"]
 ): Promise<MonthlyTrendPoint[]> {
   await connectDB();
-  const query = buildQuery({ period, type });
+  const query = buildQuery(ctx, { period, type });
   const docs = await Transaction.find(query);
 
   const totals = new Map<string, { income: number; expense: number }>();
@@ -222,19 +234,27 @@ export async function getMonthlyTrends(
 }
 
 export async function createTransaction(
+  ctx: OwnerContext,
   data: Record<string, unknown>
 ): Promise<TransactionData> {
   await connectDB();
-  const doc = await Transaction.create({ ...data, source: data.source ?? "manual" });
+  const doc = await Transaction.create({
+    ...data,
+    source: data.source ?? "manual",
+    ownerId: toOwnerObjectId(ctx.ownerId),
+  });
   return serializeTransaction(doc);
 }
 
 export async function updateTransaction(
+  ctx: OwnerContext,
   id: string,
   data: Record<string, unknown>
 ): Promise<TransactionData | null> {
   await connectDB();
-  const doc = await Transaction.findById(id);
+  const doc = await Transaction.findOne(
+    mergeOwnerFilter({ _id: id }, ctx.ownerId, ctx.isAdmin)
+  );
   if (!doc) return null;
 
   for (const [key, value] of Object.entries(data)) {
@@ -246,9 +266,11 @@ export async function updateTransaction(
   return serializeTransaction(doc);
 }
 
-export async function deleteTransaction(id: string): Promise<boolean> {
+export async function deleteTransaction(ctx: OwnerContext, id: string): Promise<boolean> {
   await connectDB();
-  const result = await Transaction.findByIdAndDelete(id);
+  const result = await Transaction.findOneAndDelete(
+    mergeOwnerFilter({ _id: id }, ctx.ownerId, ctx.isAdmin)
+  );
   return Boolean(result);
 }
 
